@@ -8,11 +8,12 @@ use axum::{
 use axum_server::tls_rustls::RustlsConfig;
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use rcgen::generate_simple_self_signed;
+use rcgen::{CertificateParams, DistinguishedName, SanType};
 use std::net::UdpSocket;
 use std::process::Command;
 use std::sync::Arc;
 use tokio::runtime::Handle;
+use tokio::sync::oneshot;
 use webrtc::{
     api::{
         interceptor_registry::register_default_interceptors,
@@ -20,8 +21,10 @@ use webrtc::{
         setting_engine::SettingEngine,
         APIBuilder,
     },
-    ice::udp_network::{EphemeralUDP, UDPNetwork},
-    ice_transport::ice_server::RTCIceServer,
+    ice_transport::{
+        ice_gatherer_state::RTCIceGathererState,
+        ice_server::RTCIceServer,
+    },
     interceptor::registry::Registry,
     media::Sample,
     peer_connection::{
@@ -30,37 +33,66 @@ use webrtc::{
         sdp::session_description::RTCSessionDescription,
     },
     rtp_transceiver::rtp_codec::RTCRtpCodecCapability,
-    track::track_local::{track_local_static_sample::TrackLocalStaticSample, TrackLocal},
+    track::track_local::{
+        track_local_static_sample::TrackLocalStaticSample, TrackLocal,
+    },
 };
 
+// ── App state ────────────────────────────────────────────────────────────────
 struct AppState {
-    api: webrtc::api::API,
+    api:   webrtc::api::API,
     track: Arc<TrackLocalStaticSample>,
 }
 
-/// Detect the local WiFi/LAN IP by routing toward 8.8.8.8 (no packet sent).
+// ── Detect LAN IP (no packet sent) ───────────────────────────────────────────
 fn local_lan_ip() -> String {
-    let s = UdpSocket::bind("0.0.0.0:0").unwrap_or_else(|_| panic!("bind failed"));
-    s.connect("8.8.8.8:80").unwrap_or_else(|_| panic!("connect probe failed"));
-    s.local_addr()
+    UdpSocket::bind("0.0.0.0:0")
+        .and_then(|s| { s.connect("8.8.8.8:80")?; s.local_addr() })
         .map(|a| a.ip().to_string())
         .unwrap_or_else(|_| "127.0.0.1".to_string())
 }
 
+// ── Generate self-signed cert with proper SANs ───────────────────────────────
+fn make_self_signed_cert(lan_ip: &str) -> Result<(Vec<u8>, Vec<u8>)> {
+    let mut params = CertificateParams::new(vec![
+        "localhost".to_string(),
+        lan_ip.to_string(),
+    ])
+    .map_err(|e| anyhow!("CertificateParams: {e}"))?;
+
+    params.distinguished_name = DistinguishedName::new();
+
+    // Add the LAN IP as an IP SAN so Chrome accepts it
+    if let Ok(ip) = lan_ip.parse::<std::net::IpAddr>() {
+        params.subject_alt_names.push(SanType::IpAddress(ip));
+    }
+    params.subject_alt_names.push(SanType::IpAddress(
+        "127.0.0.1".parse().unwrap(),
+    ));
+
+    let key_pair = rcgen::KeyPair::generate()
+        .map_err(|e| anyhow!("KeyPair::generate: {e}"))?;
+
+    let cert = params
+        .self_signed(&key_pair)
+        .map_err(|e| anyhow!("self_signed: {e}"))?;
+
+    Ok((cert.pem().into_bytes(), key_pair.serialize_pem().into_bytes()))
+}
+
+// ── Entry point ───────────────────────────────────────────────────────────────
 #[tokio::main]
 async fn main() -> Result<()> {
-    // ── WebRTC setup ──────────────────────────────────────────────────────────
+    // WebRTC media engine
     let mut media_engine = MediaEngine::default();
     media_engine.register_default_codecs()?;
 
     let mut registry = Registry::new();
     registry = register_default_interceptors(registry, &mut media_engine)?;
 
-    let mut ephemeral_udp = EphemeralUDP::default();
-    ephemeral_udp.set_ports(50000, 50050)?;
-
+    // Limit ICE UDP port range so firewall rules are simple
     let mut setting_engine = SettingEngine::default();
-    setting_engine.set_udp_network(UDPNetwork::Ephemeral(ephemeral_udp));
+    setting_engine.set_ephemeral_udp_port_range(50000, 50050)?;
 
     let api = APIBuilder::new()
         .with_media_engine(media_engine)
@@ -68,86 +100,70 @@ async fn main() -> Result<()> {
         .with_setting_engine(setting_engine)
         .build();
 
+    // Shared Opus track
     let track = Arc::new(TrackLocalStaticSample::new(
         RTCRtpCodecCapability {
-            mime_type: MIME_TYPE_OPUS.to_owned(),
-            clock_rate: 48_000,
-            channels: 2,
-            sdp_fmtp_line: "minptime=10;useinbandfec=1;stereo=1".to_string(),
+            mime_type:      MIME_TYPE_OPUS.to_owned(),
+            clock_rate:     48_000,
+            channels:       2,
+            sdp_fmtp_line:  "minptime=10;useinbandfec=1;stereo=1".to_string(),
             ..Default::default()
         },
         "desktop_audio".to_owned(),
         "mypro".to_owned(),
     ));
 
-    // ── Audio capture thread ──────────────────────────────────────────────────
+    // Audio capture on a dedicated OS thread
     let audio_track = Arc::clone(&track);
-    let rt_handle = Handle::current();
-
+    let rt_handle   = Handle::current();
     std::thread::spawn(move || {
-        if let Err(err) = start_audio_capture(audio_track, rt_handle) {
-            eprintln!("audio capture failed: {err:?}");
+        if let Err(e) = start_audio_capture(audio_track, rt_handle) {
+            eprintln!("audio capture failed: {e:?}");
         }
     });
 
-    // ── Axum router ───────────────────────────────────────────────────────────
-    let app_state = Arc::new(AppState { api, track });
-
+    // Axum router
+    let state = Arc::new(AppState { api, track });
     let app = Router::new()
-        .route("/", get(index_handler))
+        .route("/",      get(index_handler))
         .route("/offer", post(handle_offer))
-        .with_state(app_state);
+        .with_state(state);
 
-    // ── Self-signed TLS cert (generated at runtime, no OpenSSL needed) ────────
+    // Self-signed TLS
     let lan_ip = local_lan_ip();
-    println!("Detected LAN IP: {lan_ip}");
+    println!("Detected LAN IP : {lan_ip}");
 
-    let subject_alt_names = vec![
-        "localhost".to_string(),
-        "127.0.0.1".to_string(),
-        lan_ip.clone(),
-    ];
+    let (cert_pem, key_pem) = make_self_signed_cert(&lan_ip)?;
 
-    let cert = generate_simple_self_signed(subject_alt_names)
-        .map_err(|e| anyhow!("cert generation failed: {e}"))?;
-
-    let cert_pem = cert.cert.pem();
-    let key_pem  = cert.key_pair.serialize_pem();
-
-    // Persist cert.pem so you can install it as a trusted CA on Android.
-    // Settings → Security → Install a certificate → CA certificate → pick cert.pem
-    if let Err(e) = std::fs::write("cert.pem", &cert_pem) {
-        eprintln!("Warning: could not write cert.pem: {e}");
-    } else {
-        println!("cert.pem written — install on Android to remove the browser warning");
+    // Write cert so you can install it as a CA on Android
+    match std::fs::write("cert.pem", &cert_pem) {
+        Ok(_)  => println!("cert.pem written  (install as CA on Android to skip browser warning)"),
+        Err(e) => eprintln!("Warning: could not write cert.pem: {e}"),
     }
 
-    let tls_config = RustlsConfig::from_pem(
-        cert_pem.into_bytes(),
-        key_pem.into_bytes(),
-    )
-    .await
-    .map_err(|e| anyhow!("TLS config failed: {e}"))?;
+    let tls_config = RustlsConfig::from_pem(cert_pem, key_pem)
+        .await
+        .map_err(|e| anyhow!("TLS config error: {e}"))?;
 
-    // ── Bind HTTPS ────────────────────────────────────────────────────────────
     let bind_addr: std::net::SocketAddr = "0.0.0.0:8443".parse()?;
-    println!("Listening on https://{lan_ip}:8443");
-    println!("Open on your phone: https://{lan_ip}:8443");
+    println!("Listening on  https://{lan_ip}:8443");
+    println!("Open on phone https://{lan_ip}:8443");
 
     axum_server::bind_rustls(bind_addr, tls_config)
         .serve(app.into_make_service())
-        .await?;
-
-    Ok(())
+        .await
+        .map_err(|e| anyhow!("server error: {e}"))
 }
 
+// ── Static page ───────────────────────────────────────────────────────────────
 async fn index_handler() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
 }
 
+// ── WebRTC offer handler ──────────────────────────────────────────────────────
 async fn handle_offer(
     State(state): State<Arc<AppState>>,
-    Json(offer): Json<RTCSessionDescription>,
+    Json(offer):  Json<RTCSessionDescription>,
 ) -> Json<RTCSessionDescription> {
     let config = RTCConfiguration {
         ice_servers: vec![RTCIceServer {
@@ -157,156 +173,135 @@ async fn handle_offer(
         ..Default::default()
     };
 
-    let peer_connection = Arc::new(
-        state
-            .api
-            .new_peer_connection(config)
-            .await
+    let pc = Arc::new(
+        state.api.new_peer_connection(config).await
             .expect("failed to create peer connection"),
     );
 
-    let rtp_sender = peer_connection
+    // Drain RTCP
+    let rtp_sender = pc
         .add_track(Arc::clone(&state.track) as Arc<dyn TrackLocal + Send + Sync>)
         .await
-        .expect("failed to add audio track");
-
+        .expect("failed to add track");
     tokio::spawn(async move {
-        let mut rtcp_buf = vec![0u8; 1500];
-        while rtp_sender.read(&mut rtcp_buf).await.is_ok() {}
+        let mut buf = vec![0u8; 1500];
+        while rtp_sender.read(&mut buf).await.is_ok() {}
     });
 
-    peer_connection.on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
-        println!("Peer connection state: {s}");
+    pc.on_peer_connection_state_change(Box::new(|s: RTCPeerConnectionState| {
+        println!("PC state: {s}");
         Box::pin(async {})
     }));
 
-    peer_connection
-        .set_remote_description(offer)
-        .await
-        .expect("failed to set remote description");
+    pc.set_remote_description(offer).await
+        .expect("set_remote_description failed");
 
-    let answer = peer_connection
-        .create_answer(None)
-        .await
-        .expect("failed to create answer");
+    let answer = pc.create_answer(None).await
+        .expect("create_answer failed");
 
-    peer_connection
-        .set_local_description(answer)
-        .await
-        .expect("failed to set local description");
+    // Wait for ICE gathering to complete instead of a blind sleep
+    let (tx, rx) = oneshot::channel::<()>();
+    let tx = Arc::new(tokio::sync::Mutex::new(Some(tx)));
 
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    pc.on_ice_gathering_state_change(Box::new(move |state: RTCIceGathererState| {
+        let tx = Arc::clone(&tx);
+        Box::pin(async move {
+            if state == RTCIceGathererState::Complete {
+                if let Some(t) = tx.lock().await.take() {
+                    let _ = t.send(());
+                }
+            }
+        })
+    }));
 
-    let final_answer = peer_connection
-        .local_description()
-        .await
-        .expect("missing local description after ICE gathering");
+    pc.set_local_description(answer).await
+        .expect("set_local_description failed");
+
+    // Wait up to 4 s for ICE to finish gathering, then send whatever we have
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(4), rx).await;
+
+    let final_answer = pc.local_description().await
+        .expect("no local description");
 
     Json(final_answer)
 }
 
+// ── PulseAudio default source helper ─────────────────────────────────────────
 fn pulse_default_source_name() -> Option<String> {
-    let output = Command::new("pactl")
-        .arg("get-default-source")
-        .output()
-        .ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    let s = String::from_utf8(output.stdout).ok()?;
-    let s = s.trim().to_string();
-
-    if s.is_empty() {
-        None
-    } else {
-        Some(s)
-    }
+    let out = Command::new("pactl").arg("get-default-source").output().ok()?;
+    if !out.status.success() { return None; }
+    let s = String::from_utf8(out.stdout).ok()?.trim().to_string();
+    if s.is_empty() { None } else { Some(s) }
 }
 
+// ── Pick best input device ────────────────────────────────────────────────────
 fn choose_input_device() -> Result<cpal::Device> {
-    let host = cpal::default_host();
+    let host    = cpal::default_host();
     let devices: Vec<cpal::Device> = host.input_devices()?.collect();
+    if devices.is_empty() { return Err(anyhow!("no input devices")); }
 
-    if devices.is_empty() {
-        return Err(anyhow!("no input devices found"));
-    }
+    let default_src = pulse_default_source_name();
+    println!("Pulse default source: {}", default_src.as_deref().unwrap_or("<none>"));
 
-    let default_source = pulse_default_source_name();
-    if let Some(ref src) = default_source {
-        println!("Pulse default source: {src}");
-    } else {
-        println!("Pulse default source: <not found>");
-    }
-
-    for device in &devices {
-        if let Ok(desc) = device.description() {
-            let name = desc.name().to_ascii_lowercase();
-            let ext = desc.extended().join(" ").to_ascii_lowercase();
-
-            if let Some(ref src) = default_source {
-                let src_l = src.to_ascii_lowercase();
-                if name.contains(&src_l) || ext.contains(&src_l) {
-                    println!("Selected device from Pulse default source: {:?}", desc);
-                    return Ok(device.clone());
-                }
+    // 1. Match Pulse default source by name
+    if let Some(ref src) = default_src {
+        let src_l = src.to_ascii_lowercase();
+        for d in &devices {
+            let name = d.name().unwrap_or_default().to_ascii_lowercase();
+            if name.contains(&src_l) {
+                println!("Selected (pulse match): {}", d.name().unwrap_or_default());
+                return Ok(d.clone());
             }
         }
     }
 
-    for device in &devices {
-        if let Ok(desc) = device.description() {
-            let name = desc.name().to_ascii_lowercase();
-            let ext = desc.extended().join(" ").to_ascii_lowercase();
-
-            if name.contains("monitor") || ext.contains("monitor") {
-                println!("Selected monitor device fallback: {:?}", desc);
-                return Ok(device.clone());
-            }
+    // 2. Prefer monitor (loopback) device
+    for d in &devices {
+        let name = d.name().unwrap_or_default().to_ascii_lowercase();
+        if name.contains("monitor") {
+            println!("Selected (monitor): {}", d.name().unwrap_or_default());
+            return Ok(d.clone());
         }
     }
 
-    if let Some(device) = host.default_input_device() {
-        if let Ok(desc) = device.description() {
-            println!("Selected host default input device fallback: {:?}", desc);
-        }
-        return Ok(device);
-    }
-
-    Err(anyhow!("no suitable input device found"))
+    // 3. Fall back to host default
+    host.default_input_device()
+        .ok_or_else(|| anyhow!("no default input device"))
 }
 
+// ── Write one Opus frame to the WebRTC track ──────────────────────────────────
 async fn write_encoded_frame(
-    track: Arc<TrackLocalStaticSample>,
-    payload: Vec<u8>,
+    track:       Arc<TrackLocalStaticSample>,
+    payload:     Vec<u8>,
     duration_ms: u64,
 ) {
-    let _ = track
-        .write_sample(&Sample {
-            data: Bytes::from(payload),
-            duration: std::time::Duration::from_millis(duration_ms),
-            ..Default::default()
-        })
-        .await;
+    let _ = track.write_sample(&Sample {
+        data:     Bytes::from(payload),
+        duration: std::time::Duration::from_millis(duration_ms),
+        ..Default::default()
+    }).await;
 }
 
-fn start_audio_capture(track: Arc<TrackLocalStaticSample>, rt_handle: Handle) -> Result<()> {
-    let device = choose_input_device()?;
-    let supported_config = device.default_input_config()?;
+// ── Audio capture + encode ────────────────────────────────────────────────────
+fn start_audio_capture(
+    track:     Arc<TrackLocalStaticSample>,
+    rt_handle: Handle,
+) -> Result<()> {
+    let device         = choose_input_device()?;
+    let sup_cfg        = device.default_input_config()?;
+    let input_sr       = sup_cfg.sample_rate().0 as usize;
+    let input_ch       = sup_cfg.channels()     as usize;
+    let stream_config: cpal::StreamConfig = sup_cfg.clone().into();
 
-    println!("Using input device: {:?}", device.description());
-    println!("Input config: {:?}", supported_config);
+    println!("Input device : {}",  device.name().unwrap_or_default());
+    println!("Input config : {:?}", sup_cfg);
 
-    let input_sample_rate = supported_config.sample_rate().0 as usize;
-    let input_channels    = supported_config.channels() as usize;
-
-    let opus_sample_rate = 48_000usize;
-    let opus_channels    = 2usize;
-    let frame_size       = 480usize;
+    const OPUS_SR:    usize = 48_000;
+    const OPUS_CH:    usize = 2;
+    const FRAME_SIZE: usize = 480;   // 10 ms at 48 kHz
 
     let mut encoder = opus::Encoder::new(
-        opus_sample_rate as u32,
+        OPUS_SR as u32,
         opus::Channels::Stereo,
         opus::Application::Audio,
     )?;
@@ -314,88 +309,99 @@ fn start_audio_capture(track: Arc<TrackLocalStaticSample>, rt_handle: Handle) ->
     encoder.set_vbr(true)?;
     encoder.set_inband_fec(true)?;
 
-    let mut input_pcm: Vec<f32> = Vec::with_capacity(8192);
-    let mut opus_pcm: Vec<i16>  = Vec::with_capacity(frame_size * opus_channels * 4);
+    // These Vecs are mutated inside the cpal callback closure.
+    // We cannot use a macro that borrows them across match arms,
+    // so we define a plain closure factory instead.
+    fn make_callback(
+        track:        Arc<TrackLocalStaticSample>,
+        rt_handle:    Handle,
+        mut encoder:  opus::Encoder,
+        input_sr:     usize,
+        input_ch:     usize,
+    ) -> impl FnMut(Vec<f32>) + Send + 'static {
+        let mut input_pcm: Vec<f32> = Vec::with_capacity(8192);
+        let mut opus_pcm:  Vec<i16> = Vec::with_capacity(FRAME_SIZE * OPUS_CH * 4);
 
-    let stream_config: cpal::StreamConfig = supported_config.clone().into();
+        move |samples: Vec<f32>| {
+            input_pcm.extend_from_slice(&samples);
 
-    macro_rules! build_stream {
-        ($data:expr, $convert:expr) => {{
-            input_pcm.extend($data.iter().map($convert));
+            let frames_in = input_pcm.len() / input_ch;
+            if frames_in == 0 { return; }
 
-            let frames_available = input_pcm.len() / input_channels;
-            if frames_available == 0 { return; }
+            let ratio      = OPUS_SR as f64 / input_sr as f64;
+            let frames_out = ((frames_in as f64) * ratio) as usize;
+            if frames_out == 0 { return; }
 
-            let ratio     = opus_sample_rate as f64 / input_sample_rate as f64;
-            let out_frames = ((frames_available as f64) * ratio) as usize;
-            if out_frames == 0 { return; }
-
-            let mut resampled: Vec<i16> = Vec::with_capacity(out_frames * opus_channels);
-
-            for out_idx in 0..out_frames {
-                let src_frame = ((out_idx as f64 / ratio) as usize)
-                    .min(frames_available.saturating_sub(1));
-
-                let left  = input_pcm[src_frame * input_channels];
-                let right = if input_channels >= 2 {
-                    input_pcm[src_frame * input_channels + 1]
-                } else {
-                    left
-                };
-
-                resampled.push((left  * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
-                resampled.push((right * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
+            let mut resampled = Vec::with_capacity(frames_out * OPUS_CH);
+            for i in 0..frames_out {
+                let src = ((i as f64 / ratio) as usize).min(frames_in - 1);
+                let l   = input_pcm[src * input_ch];
+                let r   = if input_ch >= 2 { input_pcm[src * input_ch + 1] } else { l };
+                resampled.push((l * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
+                resampled.push((r * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
             }
 
             input_pcm.clear();
             opus_pcm.extend_from_slice(&resampled);
 
-            while opus_pcm.len() >= frame_size * opus_channels {
-                let frame: Vec<i16> = opus_pcm.drain(..frame_size * opus_channels).collect();
-                let mut opus_out = vec![0u8; 4000];
-
-                if let Ok(len) = encoder.encode(&frame, &mut opus_out) {
-                    opus_out.truncate(len);
-                    let track = Arc::clone(&track);
-                    rt_handle.spawn(write_encoded_frame(track, opus_out, 10));
+            while opus_pcm.len() >= FRAME_SIZE * OPUS_CH {
+                let frame: Vec<i16> = opus_pcm.drain(..FRAME_SIZE * OPUS_CH).collect();
+                let mut out = vec![0u8; 4000];
+                if let Ok(n) = encoder.encode(&frame, &mut out) {
+                    out.truncate(n);
+                    rt_handle.spawn(write_encoded_frame(Arc::clone(&track), out, 10));
                 }
             }
-        }};
+        }
     }
 
-    let stream = match supported_config.sample_format() {
-        cpal::SampleFormat::F32 => device.build_input_stream(
-            &stream_config,
-            move |data: &[f32], _| { build_stream!(data, |&s| s); },
-            move |err| eprintln!("cpal stream error: {err}"),
-            None,
-        )?,
+    let cb = make_callback(
+        Arc::clone(&track), rt_handle.clone(), encoder, input_sr, input_ch,
+    );
 
-        cpal::SampleFormat::I16 => device.build_input_stream(
-            &stream_config,
-            move |data: &[i16], _| {
-                build_stream!(data, |&s| s as f32 / i16::MAX as f32);
-            },
-            move |err| eprintln!("cpal stream error: {err}"),
-            None,
-        )?,
+    // Wrap the single callback so every sample format path calls it
+    let cb = Arc::new(std::sync::Mutex::new(cb));
 
-        cpal::SampleFormat::U16 => device.build_input_stream(
-            &stream_config,
-            move |data: &[u16], _| {
-                build_stream!(data, |&s| (s as f32 - 32768.0) / 32768.0);
-            },
-            move |err| eprintln!("cpal stream error: {err}"),
-            None,
-        )?,
-
+    let stream = match sup_cfg.sample_format() {
+        cpal::SampleFormat::F32 => {
+            let cb = Arc::clone(&cb);
+            device.build_input_stream(
+                &stream_config,
+                move |data: &[f32], _| {
+                    cb.lock().unwrap()(data.to_vec());
+                },
+                |e| eprintln!("stream error: {e}"),
+                None,
+            )?
+        }
+        cpal::SampleFormat::I16 => {
+            let cb = Arc::clone(&cb);
+            device.build_input_stream(
+                &stream_config,
+                move |data: &[i16], _| {
+                    let f: Vec<f32> = data.iter().map(|&s| s as f32 / i16::MAX as f32).collect();
+                    cb.lock().unwrap()(f);
+                },
+                |e| eprintln!("stream error: {e}"),
+                None,
+            )?
+        }
+        cpal::SampleFormat::U16 => {
+            let cb = Arc::clone(&cb);
+            device.build_input_stream(
+                &stream_config,
+                move |data: &[u16], _| {
+                    let f: Vec<f32> = data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0).collect();
+                    cb.lock().unwrap()(f);
+                },
+                |e| eprintln!("stream error: {e}"),
+                None,
+            )?
+        }
         other => return Err(anyhow!("unsupported sample format: {other:?}")),
     };
 
     stream.play()?;
     println!("Audio capture started");
-
-    loop {
-        std::thread::sleep(std::time::Duration::from_secs(1));
-    }
+    loop { std::thread::sleep(std::time::Duration::from_secs(1)); }
 }
