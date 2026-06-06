@@ -5,8 +5,11 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use axum_server::tls_rustls::RustlsConfig;
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use rcgen::generate_simple_self_signed;
+use std::net::UdpSocket;
 use std::process::Command;
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -35,8 +38,18 @@ struct AppState {
     track: Arc<TrackLocalStaticSample>,
 }
 
+/// Detect the local WiFi/LAN IP by routing toward 8.8.8.8 (no packet sent).
+fn local_lan_ip() -> String {
+    let s = UdpSocket::bind("0.0.0.0:0").unwrap_or_else(|_| panic!("bind failed"));
+    s.connect("8.8.8.8:80").unwrap_or_else(|_| panic!("connect probe failed"));
+    s.local_addr()
+        .map(|a| a.ip().to_string())
+        .unwrap_or_else(|_| "127.0.0.1".to_string())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    // ── WebRTC setup ──────────────────────────────────────────────────────────
     let mut media_engine = MediaEngine::default();
     media_engine.register_default_codecs()?;
 
@@ -67,6 +80,7 @@ async fn main() -> Result<()> {
         "mypro".to_owned(),
     ));
 
+    // ── Audio capture thread ──────────────────────────────────────────────────
     let audio_track = Arc::clone(&track);
     let rt_handle = Handle::current();
 
@@ -76,6 +90,7 @@ async fn main() -> Result<()> {
         }
     });
 
+    // ── Axum router ───────────────────────────────────────────────────────────
     let app_state = Arc::new(AppState { api, track });
 
     let app = Router::new()
@@ -83,12 +98,45 @@ async fn main() -> Result<()> {
         .route("/offer", post(handle_offer))
         .with_state(app_state);
 
-    let port = 8080;
-    let bind_addr = format!("0.0.0.0:{port}");
-    println!("Listening on http://{bind_addr}");
+    // ── Self-signed TLS cert (generated at runtime, no OpenSSL needed) ────────
+    let lan_ip = local_lan_ip();
+    println!("Detected LAN IP: {lan_ip}");
 
-    let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
-    axum::serve(listener, app).await?;
+    let subject_alt_names = vec![
+        "localhost".to_string(),
+        "127.0.0.1".to_string(),
+        lan_ip.clone(),
+    ];
+
+    let cert = generate_simple_self_signed(subject_alt_names)
+        .map_err(|e| anyhow!("cert generation failed: {e}"))?;
+
+    let cert_pem = cert.cert.pem();
+    let key_pem  = cert.key_pair.serialize_pem();
+
+    // Persist cert.pem so you can install it as a trusted CA on Android.
+    // Settings → Security → Install a certificate → CA certificate → pick cert.pem
+    if let Err(e) = std::fs::write("cert.pem", &cert_pem) {
+        eprintln!("Warning: could not write cert.pem: {e}");
+    } else {
+        println!("cert.pem written — install on Android to remove the browser warning");
+    }
+
+    let tls_config = RustlsConfig::from_pem(
+        cert_pem.into_bytes(),
+        key_pem.into_bytes(),
+    )
+    .await
+    .map_err(|e| anyhow!("TLS config failed: {e}"))?;
+
+    // ── Bind HTTPS ────────────────────────────────────────────────────────────
+    let bind_addr: std::net::SocketAddr = "0.0.0.0:8443".parse()?;
+    println!("Listening on https://{lan_ip}:8443");
+    println!("Open on your phone: https://{lan_ip}:8443");
+
+    axum_server::bind_rustls(bind_addr, tls_config)
+        .serve(app.into_make_service())
+        .await?;
 
     Ok(())
 }
@@ -250,12 +298,12 @@ fn start_audio_capture(track: Arc<TrackLocalStaticSample>, rt_handle: Handle) ->
     println!("Using input device: {:?}", device.description());
     println!("Input config: {:?}", supported_config);
 
-    let input_sample_rate = supported_config.sample_rate() as usize;
-    let input_channels = supported_config.channels() as usize;
+    let input_sample_rate = supported_config.sample_rate().0 as usize;
+    let input_channels    = supported_config.channels() as usize;
 
     let opus_sample_rate = 48_000usize;
-    let opus_channels = 2usize;
-    let frame_size = 480usize;
+    let opus_channels    = 2usize;
+    let frame_size       = 480usize;
 
     let mut encoder = opus::Encoder::new(
         opus_sample_rate as u32,
@@ -267,63 +315,58 @@ fn start_audio_capture(track: Arc<TrackLocalStaticSample>, rt_handle: Handle) ->
     encoder.set_inband_fec(true)?;
 
     let mut input_pcm: Vec<f32> = Vec::with_capacity(8192);
-    let mut opus_pcm: Vec<i16> = Vec::with_capacity(frame_size * opus_channels * 4);
+    let mut opus_pcm: Vec<i16>  = Vec::with_capacity(frame_size * opus_channels * 4);
 
     let stream_config: cpal::StreamConfig = supported_config.clone().into();
+
+    macro_rules! build_stream {
+        ($data:expr, $convert:expr) => {{
+            input_pcm.extend($data.iter().map($convert));
+
+            let frames_available = input_pcm.len() / input_channels;
+            if frames_available == 0 { return; }
+
+            let ratio     = opus_sample_rate as f64 / input_sample_rate as f64;
+            let out_frames = ((frames_available as f64) * ratio) as usize;
+            if out_frames == 0 { return; }
+
+            let mut resampled: Vec<i16> = Vec::with_capacity(out_frames * opus_channels);
+
+            for out_idx in 0..out_frames {
+                let src_frame = ((out_idx as f64 / ratio) as usize)
+                    .min(frames_available.saturating_sub(1));
+
+                let left  = input_pcm[src_frame * input_channels];
+                let right = if input_channels >= 2 {
+                    input_pcm[src_frame * input_channels + 1]
+                } else {
+                    left
+                };
+
+                resampled.push((left  * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
+                resampled.push((right * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
+            }
+
+            input_pcm.clear();
+            opus_pcm.extend_from_slice(&resampled);
+
+            while opus_pcm.len() >= frame_size * opus_channels {
+                let frame: Vec<i16> = opus_pcm.drain(..frame_size * opus_channels).collect();
+                let mut opus_out = vec![0u8; 4000];
+
+                if let Ok(len) = encoder.encode(&frame, &mut opus_out) {
+                    opus_out.truncate(len);
+                    let track = Arc::clone(&track);
+                    rt_handle.spawn(write_encoded_frame(track, opus_out, 10));
+                }
+            }
+        }};
+    }
 
     let stream = match supported_config.sample_format() {
         cpal::SampleFormat::F32 => device.build_input_stream(
             &stream_config,
-            move |data: &[f32], _| {
-                input_pcm.extend_from_slice(data);
-
-                let frames_available = input_pcm.len() / input_channels;
-                if frames_available == 0 {
-                    return;
-                }
-
-                let ratio = opus_sample_rate as f64 / input_sample_rate as f64;
-                let out_frames = ((frames_available as f64) * ratio) as usize;
-                if out_frames == 0 {
-                    return;
-                }
-
-                let mut resampled: Vec<i16> = Vec::with_capacity(out_frames * opus_channels);
-
-                for out_idx in 0..out_frames {
-                    let src_pos = (out_idx as f64 / ratio) as usize;
-                    let src_frame = src_pos.min(frames_available.saturating_sub(1));
-
-                    let left = input_pcm[src_frame * input_channels];
-                    let right = if input_channels >= 2 {
-                        input_pcm[src_frame * input_channels + 1]
-                    } else {
-                        left
-                    };
-
-                    let l = (left * i16::MAX as f32)
-                        .clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-                    let r = (right * i16::MAX as f32)
-                        .clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-
-                    resampled.push(l);
-                    resampled.push(r);
-                }
-
-                input_pcm.clear();
-                opus_pcm.extend_from_slice(&resampled);
-
-                while opus_pcm.len() >= frame_size * opus_channels {
-                    let frame: Vec<i16> = opus_pcm.drain(..frame_size * opus_channels).collect();
-                    let mut opus_out = vec![0u8; 4000];
-
-                    if let Ok(len) = encoder.encode(&frame, &mut opus_out) {
-                        opus_out.truncate(len);
-                        let track = Arc::clone(&track);
-                        rt_handle.spawn(write_encoded_frame(track, opus_out, 10));
-                    }
-                }
-            },
+            move |data: &[f32], _| { build_stream!(data, |&s| s); },
             move |err| eprintln!("cpal stream error: {err}"),
             None,
         )?,
@@ -331,54 +374,7 @@ fn start_audio_capture(track: Arc<TrackLocalStaticSample>, rt_handle: Handle) ->
         cpal::SampleFormat::I16 => device.build_input_stream(
             &stream_config,
             move |data: &[i16], _| {
-                input_pcm.extend(data.iter().map(|&s| s as f32 / i16::MAX as f32));
-
-                let frames_available = input_pcm.len() / input_channels;
-                if frames_available == 0 {
-                    return;
-                }
-
-                let ratio = opus_sample_rate as f64 / input_sample_rate as f64;
-                let out_frames = ((frames_available as f64) * ratio) as usize;
-                if out_frames == 0 {
-                    return;
-                }
-
-                let mut resampled: Vec<i16> = Vec::with_capacity(out_frames * opus_channels);
-
-                for out_idx in 0..out_frames {
-                    let src_pos = (out_idx as f64 / ratio) as usize;
-                    let src_frame = src_pos.min(frames_available.saturating_sub(1));
-
-                    let left = input_pcm[src_frame * input_channels];
-                    let right = if input_channels >= 2 {
-                        input_pcm[src_frame * input_channels + 1]
-                    } else {
-                        left
-                    };
-
-                    let l = (left * i16::MAX as f32)
-                        .clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-                    let r = (right * i16::MAX as f32)
-                        .clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-
-                    resampled.push(l);
-                    resampled.push(r);
-                }
-
-                input_pcm.clear();
-                opus_pcm.extend_from_slice(&resampled);
-
-                while opus_pcm.len() >= frame_size * opus_channels {
-                    let frame: Vec<i16> = opus_pcm.drain(..frame_size * opus_channels).collect();
-                    let mut opus_out = vec![0u8; 4000];
-
-                    if let Ok(len) = encoder.encode(&frame, &mut opus_out) {
-                        opus_out.truncate(len);
-                        let track = Arc::clone(&track);
-                        rt_handle.spawn(write_encoded_frame(track, opus_out, 10));
-                    }
-                }
+                build_stream!(data, |&s| s as f32 / i16::MAX as f32);
             },
             move |err| eprintln!("cpal stream error: {err}"),
             None,
@@ -387,54 +383,7 @@ fn start_audio_capture(track: Arc<TrackLocalStaticSample>, rt_handle: Handle) ->
         cpal::SampleFormat::U16 => device.build_input_stream(
             &stream_config,
             move |data: &[u16], _| {
-                input_pcm.extend(data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0));
-
-                let frames_available = input_pcm.len() / input_channels;
-                if frames_available == 0 {
-                    return;
-                }
-
-                let ratio = opus_sample_rate as f64 / input_sample_rate as f64;
-                let out_frames = ((frames_available as f64) * ratio) as usize;
-                if out_frames == 0 {
-                    return;
-                }
-
-                let mut resampled: Vec<i16> = Vec::with_capacity(out_frames * opus_channels);
-
-                for out_idx in 0..out_frames {
-                    let src_pos = (out_idx as f64 / ratio) as usize;
-                    let src_frame = src_pos.min(frames_available.saturating_sub(1));
-
-                    let left = input_pcm[src_frame * input_channels];
-                    let right = if input_channels >= 2 {
-                        input_pcm[src_frame * input_channels + 1]
-                    } else {
-                        left
-                    };
-
-                    let l = (left * i16::MAX as f32)
-                        .clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-                    let r = (right * i16::MAX as f32)
-                        .clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-
-                    resampled.push(l);
-                    resampled.push(r);
-                }
-
-                input_pcm.clear();
-                opus_pcm.extend_from_slice(&resampled);
-
-                while opus_pcm.len() >= frame_size * opus_channels {
-                    let frame: Vec<i16> = opus_pcm.drain(..frame_size * opus_channels).collect();
-                    let mut opus_out = vec![0u8; 4000];
-
-                    if let Ok(len) = encoder.encode(&frame, &mut opus_out) {
-                        opus_out.truncate(len);
-                        let track = Arc::clone(&track);
-                        rt_handle.spawn(write_encoded_frame(track, opus_out, 10));
-                    }
-                }
+                build_stream!(data, |&s| (s as f32 - 32768.0) / 32768.0);
             },
             move |err| eprintln!("cpal stream error: {err}"),
             None,
