@@ -62,7 +62,6 @@ fn make_self_signed_cert(lan_ip: &str) -> Result<(Vec<u8>, Vec<u8>)> {
 
     params.distinguished_name = DistinguishedName::new();
 
-    // Add the LAN IP as an IP SAN so Chrome accepts it
     if let Ok(ip) = lan_ip.parse::<std::net::IpAddr>() {
         params.subject_alt_names.push(SanType::IpAddress(ip));
     }
@@ -83,6 +82,11 @@ fn make_self_signed_cert(lan_ip: &str) -> Result<(Vec<u8>, Vec<u8>)> {
 // ── Entry point ───────────────────────────────────────────────────────────────
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Install ring as the rustls crypto provider (must be first)
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .map_err(|_| anyhow!("Failed to install rustls ring CryptoProvider"))?;
+
     // WebRTC media engine
     let mut media_engine = MediaEngine::default();
     media_engine.register_default_codecs()?;
@@ -133,7 +137,6 @@ async fn main() -> Result<()> {
 
     let (cert_pem, key_pem) = make_self_signed_cert(&lan_ip)?;
 
-    // Write cert so you can install it as a CA on Android
     match std::fs::write("cert.pem", &cert_pem) {
         Ok(_)  => println!("cert.pem written  (install as CA on Android to skip browser warning)"),
         Err(e) => eprintln!("Warning: could not write cert.pem: {e}"),
@@ -197,7 +200,7 @@ async fn handle_offer(
     let answer = pc.create_answer(None).await
         .expect("create_answer failed");
 
-    // Wait for ICE gathering to complete instead of a blind sleep
+    // Wait for ICE gathering to complete
     let (tx, rx) = oneshot::channel::<()>();
     let tx = Arc::new(tokio::sync::Mutex::new(Some(tx)));
 
@@ -215,7 +218,6 @@ async fn handle_offer(
     pc.set_local_description(answer).await
         .expect("set_local_description failed");
 
-    // Wait up to 4 s for ICE to finish gathering, then send whatever we have
     let _ = tokio::time::timeout(std::time::Duration::from_secs(4), rx).await;
 
     let final_answer = pc.local_description().await
