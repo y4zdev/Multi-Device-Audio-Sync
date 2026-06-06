@@ -90,9 +90,7 @@ async fn main() -> Result<()> {
     let mut registry = Registry::new();
     registry = register_default_interceptors(registry, &mut media_engine)?;
 
-    // Limit ICE UDP port range so firewall rules are simple
-    let mut setting_engine = SettingEngine::default();
-    setting_engine.set_ephemeral_udp_port_range(50000, 50050)?;
+    let setting_engine = SettingEngine::default();
 
     let api = APIBuilder::new()
         .with_media_engine(media_engine)
@@ -309,9 +307,6 @@ fn start_audio_capture(
     encoder.set_vbr(true)?;
     encoder.set_inband_fec(true)?;
 
-    // These Vecs are mutated inside the cpal callback closure.
-    // We cannot use a macro that borrows them across match arms,
-    // so we define a plain closure factory instead.
     fn make_callback(
         track:        Arc<TrackLocalStaticSample>,
         rt_handle:    Handle,
@@ -359,7 +354,6 @@ fn start_audio_capture(
         Arc::clone(&track), rt_handle.clone(), encoder, input_sr, input_ch,
     );
 
-    // Wrap the single callback so every sample format path calls it
     let cb = Arc::new(std::sync::Mutex::new(cb));
 
     let stream = match sup_cfg.sample_format() {
