@@ -18,13 +18,12 @@ use webrtc::{
     api::{
         interceptor_registry::register_default_interceptors,
         media_engine::{MediaEngine, MIME_TYPE_OPUS},
-        setting_engine::{SettingEngine, UDPNetwork},
+        setting_engine::SettingEngine,
         APIBuilder,
     },
     ice_transport::{
         ice_gatherer_state::RTCIceGathererState,
         ice_server::RTCIceServer,
-        ice_udp_mux::UDPMuxDefault,
     },
     interceptor::registry::Registry,
     media::Sample,
@@ -37,8 +36,8 @@ use webrtc::{
     track::track_local::{
         track_local_static_sample::TrackLocalStaticSample, TrackLocal,
     },
-    util::EphemeralUDP,
 };
+use webrtc_ice::udp_network::{EphemeralUDP, UDPNetwork};
 
 // ── App state ────────────────────────────────────────────────────────────────
 struct AppState {
@@ -97,9 +96,7 @@ async fn main() -> Result<()> {
     registry = register_default_interceptors(registry, &mut media_engine)?;
 
     // Pin ICE UDP to port range 30690-30710
-    let mut ephemeral_udp = EphemeralUDP::default();
-    ephemeral_udp.set_ports(30690, 30710)?;
-
+    let ephemeral_udp = EphemeralUDP::new(30690, 30710)?;
     let mut setting_engine = SettingEngine::default();
     setting_engine.set_udp_network(UDPNetwork::Ephemeral(ephemeral_udp));
 
