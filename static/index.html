@@ -36,12 +36,10 @@
                  linear-gradient(90deg,rgba(255,0,0,0.05),rgba(0,255,0,0.02),rgba(0,0,255,0.05));
       background-size:100% 2px,3px 100%;pointer-events:none;z-index:999;
     }
-    .grid-bg{
-      position:fixed;inset:0;z-index:-1;
+    .grid-bg{position:fixed;inset:0;z-index:-1;
       background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),
                        linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
-      background-size:30px 30px;
-    }
+      background-size:30px 30px;}
     .hud{display:flex;flex-direction:column;height:100dvh;
          padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right))
                  max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:8px;}
@@ -54,10 +52,8 @@
     .brand h1{font-size:1.4rem;letter-spacing:3px;color:var(--neon-cyan);text-transform:uppercase;line-height:1;}
     .brand span{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);}
     .header-right{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:0.8rem;}
-    .role-badge{
-      padding:3px 10px;border:1px solid;font-size:0.7rem;
-      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
-    }
+    .role-badge{padding:3px 10px;border:1px solid;font-size:0.7rem;
+      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
     .role-badge.receiver{border-color:var(--neon-cyan);color:var(--neon-cyan);}
     .role-badge.sender{border-color:var(--neon-orange);color:var(--neon-orange);}
     .sys-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);}
@@ -66,35 +62,23 @@
     .sys-dot.err{background:var(--neon-magenta);box-shadow:0 0 8px var(--neon-magenta);}
     @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
     .core{display:flex;flex:1;gap:8px;min-height:0;}
-    .viz-wrap{
-      flex:1;position:relative;
+    .viz-wrap{flex:1;position:relative;
       background:radial-gradient(circle at center,rgba(0,240,255,0.04) 0%,transparent 60%),#000;
-      border:1px solid rgba(0,240,255,0.2);clip-path:var(--clip-b);overflow:hidden;
-    }
+      border:1px solid rgba(0,240,255,0.2);clip-path:var(--clip-b);overflow:hidden;}
     canvas{width:100%;height:100%;display:block;}
-    .viz-label{
-      position:absolute;bottom:10px;left:14px;
-      font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);opacity:0.6;
-    }
+    .viz-label{position:absolute;bottom:10px;left:14px;
+      font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);opacity:0.6;}
     .side{width:330px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
-    .panel{
-      background:var(--bg-panel);
-      border:1px solid rgba(0,240,255,0.18);
-      padding:14px;clip-path:var(--clip-a);
-    }
-    .panel-hdr{
-      font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-cyan);
+    .panel{background:var(--bg-panel);border:1px solid rgba(0,240,255,0.18);padding:14px;clip-path:var(--clip-a);}
+    .panel-hdr{font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-cyan);
       text-transform:uppercase;border-bottom:1px dashed rgba(0,240,255,0.25);
-      padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;
-    }
+      padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;}
     .btn-row{display:flex;flex-wrap:wrap;gap:6px;}
-    button{
-      flex:1;min-width:70px;background:transparent;color:var(--text-main);
+    button{flex:1;min-width:70px;background:transparent;color:var(--text-main);
       border:1px solid rgba(0,240,255,0.35);padding:7px 10px;
       font-family:var(--font-mono);font-size:0.78rem;text-transform:uppercase;
       cursor:pointer;transition:all 0.18s ease;
-      clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);
-    }
+      clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);}
     button:hover{background:rgba(0,240,255,0.1);border-color:var(--neon-cyan);text-shadow:0 0 5px var(--neon-cyan);}
     button:active{transform:scale(0.97);}
     button.primary{border-color:var(--neon-cyan);color:var(--neon-cyan);background:rgba(0,240,255,0.04);}
@@ -106,12 +90,10 @@
     button.active-btn{background:rgba(0,240,255,0.18);border-color:var(--neon-cyan);color:var(--neon-cyan);}
     button:disabled{opacity:0.35;cursor:not-allowed;}
     .stream-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;}
-    .stream-card{
-      border:1px solid rgba(0,240,255,0.2);padding:8px 10px;
+    .stream-card{border:1px solid rgba(0,240,255,0.2);padding:8px 10px;
       display:flex;align-items:center;gap:8px;
       clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
-      transition:background 0.2s;
-    }
+      transition:background 0.2s;}
     .stream-card:hover{background:rgba(0,240,255,0.05);}
     .stream-card input[type=checkbox]{accent-color:var(--neon-cyan);width:14px;height:14px;cursor:pointer;}
     .stream-name{flex:1;font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);}
@@ -122,50 +104,39 @@
     .vol-row{display:flex;align-items:center;gap:6px;margin-top:4px;}
     .vol-row input[type=range]{flex:1;accent-color:var(--neon-cyan);height:4px;cursor:pointer;}
     .vol-label{font-family:var(--font-mono);font-size:0.65rem;color:var(--text-muted);min-width:28px;text-align:right;}
-    .sender-card{
-      border:1px solid rgba(255,136,0,0.3);padding:8px 10px;
+    .sender-card{border:1px solid rgba(255,136,0,0.3);padding:8px 10px;
       display:flex;flex-direction:column;gap:4px;
-      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
-    }
+      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
     .sender-card-row{display:flex;align-items:center;gap:8px;}
     .vu-bar{flex:1;height:6px;background:rgba(255,136,0,0.1);overflow:hidden;}
     .vu-fill{height:100%;width:0%;background:var(--neon-orange);box-shadow:0 0 8px var(--neon-orange);transition:width 0.08s linear;}
     .field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
     .field label{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;}
-    .field input,.field select{
-      background:rgba(0,0,0,0.5);border:1px solid rgba(0,240,255,0.3);
+    .field input,.field select{background:rgba(0,0,0,0.5);border:1px solid rgba(0,240,255,0.3);
       color:var(--text-main);padding:6px 8px;font-family:var(--font-mono);
       font-size:0.8rem;width:100%;outline:none;
-      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
-    }
+      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
     .field input:focus,.field select:focus{border-color:var(--neon-cyan);}
     .field select option{background:#0a0c10;}
     .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
     .dk{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;}
     .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .terminal{
-      font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-green);
+    .terminal{font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-green);
       background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.15);
-      padding:8px;height:110px;overflow-y:auto;clip-path:var(--clip-b);
-    }
+      padding:8px;height:110px;overflow-y:auto;clip-path:var(--clip-b);}
     .lg{margin-bottom:3px;word-break:break-all;}
     .lt{color:var(--text-muted);margin-right:4px;}
     .le{color:var(--neon-magenta);}
     .lw{color:var(--neon-yellow);}
     .energy-track{height:4px;background:rgba(0,240,255,0.08);margin-top:8px;}
     .energy-fill{height:100%;width:0%;background:var(--neon-cyan);box-shadow:0 0 8px var(--neon-cyan);transition:width 0.1s linear;}
-    .reconnect-overlay{
-      position:fixed;inset:0;background:rgba(5,6,8,0.88);z-index:100;
-      display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;
-    }
+    .reconnect-overlay{position:fixed;inset:0;background:rgba(5,6,8,0.88);z-index:100;
+      display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
     .reconnect-overlay.show{display:flex;}
     .reconnect-msg{font-family:var(--font-mono);font-size:1rem;color:var(--neon-yellow);text-align:center;}
     .reconnect-sub{font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);}
-    .spin{
-      width:40px;height:40px;border:2px solid rgba(0,240,255,0.2);
-      border-top:2px solid var(--neon-cyan);border-radius:50%;
-      animation:spin 0.8s linear infinite;
-    }
+    .spin{width:40px;height:40px;border:2px solid rgba(0,240,255,0.2);
+      border-top:2px solid var(--neon-cyan);border-radius:50%;animation:spin 0.8s linear infinite;}
     @keyframes spin{to{transform:rotate(360deg)}}
     .hidden{display:none!important;}
     audio{display:none;}
@@ -297,7 +268,6 @@ function setSys(text, level='idle') {
 
 // ── SERVER HEALTH ─────────────────────────────────────────────────────────────
 const overlay     = document.getElementById('reconnectOverlay');
-const countdownEl = document.getElementById('reconnectCountdown');
 let serverWasDown  = false;
 let reconnectTimer = null;
 let autoReconnectFn = null;
@@ -324,15 +294,60 @@ function scheduleReconnect(fn,delayMs=2000){ clearTimeout(reconnectTimer); recon
 
 // ── WEBRTC HELPERS ────────────────────────────────────────────────────────────
 function makePC(){
-  return new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  return new RTCPeerConnection({
+    iceServers:[{urls:'stun:stun.l.google.com:19302'}],
+    // Prefer UDP for low latency on LAN
+    iceTransportPolicy:'all'
+  });
 }
 async function sendOffer(endpoint,body){
   const res=await fetch(endpoint,{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body),signal:AbortSignal.timeout(10000)
+    body:JSON.stringify(body),signal:AbortSignal.timeout(12000)
   });
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+// ── AUDIO CONTEXT & JITTER BUFFER ─────────────────────────────────────────────
+// Single shared AudioContext — do not create multiple on mobile
+let sharedAudioCtx = null;
+function getAudioCtx() {
+  if(!sharedAudioCtx || sharedAudioCtx.state==='closed') {
+    sharedAudioCtx = new (window.AudioContext||window.webkitAudioContext)({
+      latencyHint: 'playback',   // larger internal buffer → smoother
+      sampleRate:  48000
+    });
+  }
+  return sharedAudioCtx;
+}
+
+function resumeAudioCtx() {
+  const ctx = getAudioCtx();
+  if(ctx.state==='suspended') ctx.resume();
+  return ctx;
+}
+
+// Connect a MediaStream to AudioContext with a jitter buffer node
+// This smooths out the bursty delivery from WebRTC
+function connectStreamToOutput(stream, audioCtx) {
+  const src      = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.8;
+  const gain = audioCtx.createGain();
+  gain.gain.value = 1.0;
+
+  // Delay node acts as jitter buffer — 80 ms absorbs burst/stutter on LAN
+  const delay = audioCtx.createDelay(1.0);  // max 1s delay buffer
+  delay.delayTime.value = 0.08;             // 80 ms jitter smoothing
+
+  src.connect(analyser);
+  src.connect(delay);
+  delay.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  return { src, analyser, delay, gain };
 }
 
 // ── RECEIVER ROLE ─────────────────────────────────────────────────────────────
@@ -362,25 +377,51 @@ function initReceiver() {
       <div class="panel-hdr"><span>[03] Active Streams</span></div>
       <div id="activeStreamsList" style="display:flex;flex-direction:column;gap:6px;"></div>
     </div>
+    <div class="panel" style="padding:10px 14px;">
+      <div class="panel-hdr"><span>[04] Jitter Buffer</span></div>
+      <div class="vol-row">
+        <input type="range" min="0" max="300" step="10" value="80" id="jitterSlider">
+        <span class="vol-label" id="jitterLabel">80ms</span>
+      </div>
+    </div>
     <div class="terminal" id="logBox"></div>
   `;
   logEl = document.getElementById('logBox');
 
   let pc = null;
-  let audioCtx = null;
   let activeStreams = {};
   let pendingAudioEls = [];
   let selectedStreams = new Set();
   let backoff = 2000;
+  let jitterMs = 80;
 
-  // Force Play: resume AudioContext and replay all audio elements
+  document.getElementById('jitterSlider').addEventListener('input', e => {
+    jitterMs = parseInt(e.target.value);
+    document.getElementById('jitterLabel').textContent = jitterMs + 'ms';
+    // Update live delay nodes
+    Object.values(activeStreams).forEach(s => {
+      if(s.delay) s.delay.delayTime.value = jitterMs / 1000;
+    });
+    log('Jitter buffer: ' + jitterMs + 'ms');
+  });
+
   document.getElementById('forcePlayBtn').addEventListener('click', () => {
-    if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+    resumeAudioCtx();
     pendingAudioEls.forEach(a => a.play().catch(()=>{}));
     pendingAudioEls = [];
     document.getElementById('forcePlayBtn').style.display='none';
     log('Force play triggered.');
   });
+
+  // Touch gesture to resume AudioContext (required on iOS)
+  document.addEventListener('touchstart', () => {
+    const ctx = getAudioCtx();
+    if(ctx.state === 'suspended') ctx.resume();
+  }, {once: true, passive: true});
+  document.addEventListener('click', () => {
+    const ctx = getAudioCtx();
+    if(ctx.state === 'suspended') ctx.resume();
+  }, {once: true});
 
   async function fetchStreams(){
     try{
@@ -417,6 +458,18 @@ function initReceiver() {
     });
   }
 
+  function cleanupConnection() {
+    analyserNodes = [];
+    const activeEl = document.getElementById('activeStreamsList');
+    if(activeEl) activeEl.innerHTML = '';
+    // Disconnect audio nodes
+    Object.values(activeStreams).forEach(s => {
+      try { s.src.disconnect(); s.delay.disconnect(); s.gain.disconnect(); } catch {}
+    });
+    activeStreams = {};
+    document.getElementById('trackCount').textContent = '0';
+  }
+
   async function connect(){
     if(selectedStreams.size===0){
       const streams=await fetchStreams();
@@ -428,17 +481,17 @@ function initReceiver() {
     document.getElementById('netState').textContent='INIT';
 
     try{
-      if(pc){ pc.close(); pc=null; }
-      // Clear previous analyser nodes and active stream cards
-      analyserNodes=[];
-      document.getElementById('activeStreamsList').innerHTML='';
-      activeStreams={};
-      document.getElementById('trackCount').textContent='0';
+      if(pc){ try{pc.close();}catch{} pc=null; }
+      cleanupConnection();
+
+      // Resume / create AudioContext on user gesture path
+      const audioCtx = resumeAudioCtx();
 
       pc=makePC();
 
       pc.oniceconnectionstatechange=()=>{
         document.getElementById('iceState').textContent=pc.iceConnectionState.toUpperCase();
+        log('ICE: '+pc.iceConnectionState);
       };
 
       pc.onconnectionstatechange=()=>{
@@ -461,38 +514,18 @@ function initReceiver() {
         const trackNames=[...selectedStreams];
         const name=trackNames[trackIdx]||'stream_'+trackIdx;
         trackIdx++;
-        document.getElementById('trackCount').textContent=trackIdx;
+        document.getElementById('trackCount').textContent=String(trackIdx);
 
-        if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-        if(audioCtx.state==='suspended') audioCtx.resume();
-
-        const audio=document.createElement('audio');
-        audio.srcObject=stream;
-        audio.playsInline=true;
-        document.body.appendChild(audio);
-
-        const srcNode=audioCtx.createMediaStreamSource(stream);
-        const analyser=audioCtx.createAnalyser();
-        analyser.fftSize=256;
-        analyser.smoothingTimeConstant=0.8;
-        srcNode.connect(analyser);
+        // Use MediaStream -> AudioContext pipeline (no <audio> element needed)
+        // This avoids autoplay blocking and gives us the jitter delay node
+        const { src, analyser, delay, gain } = connectStreamToOutput(stream, audioCtx);
+        delay.delayTime.value = jitterMs / 1000;
         analyserNodes.push(analyser);
+        activeStreams[name] = { src, analyser, delay, gain, stream };
 
-        const gain=audioCtx.createGain();
-        srcNode.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        activeStreams[name]={audio,srcNode,analyser,gain};
-
-        audio.play().then(()=>{
-          document.getElementById('playbackState').textContent='ACTIVE';
-          document.getElementById('vizLabel').textContent='RX // '+Object.keys(activeStreams).join(' + ');
-          log('Track live: '+name);
-        }).catch(()=>{
-          pendingAudioEls.push(audio);
-          document.getElementById('forcePlayBtn').style.display='';
-          log('Autoplay blocked — tap Force Play','warn');
-        });
+        document.getElementById('playbackState').textContent='ACTIVE';
+        document.getElementById('vizLabel').textContent='RX // '+Object.keys(activeStreams).join(' + ');
+        log('Track live: '+name);
 
         // Per-stream card with volume
         const wrapper=document.createElement('div');
@@ -503,7 +536,7 @@ function initReceiver() {
         card.innerHTML=`<span class="stream-name">${name}</span><span class="stream-state live">● LIVE</span>`;
         const volRow=document.createElement('div');
         volRow.className='vol-row';
-        volRow.innerHTML=`<input type="range" min="0" max="1" step="0.01" value="1"><span class="vol-label">100%</span>`;
+        volRow.innerHTML=`<input type="range" min="0" max="2" step="0.01" value="1"><span class="vol-label">100%</span>`;
         volRow.querySelector('input').addEventListener('input',e=>{
           gain.gain.value=parseFloat(e.target.value);
           volRow.querySelector('.vol-label').textContent=Math.round(e.target.value*100)+'%';
@@ -524,7 +557,7 @@ function initReceiver() {
         sdp:pc.localDescription
       });
       await pc.setRemoteDescription(answer);
-      log('Remote SDP accepted.');
+      log('Remote SDP accepted. Waiting for tracks...');
 
     } catch(err){
       setSys('FAIL','err');
@@ -590,6 +623,7 @@ function initSender() {
     const n=Object.keys(activeConnections).length;
     document.getElementById('senderStreamCount').textContent=n;
     document.getElementById('senderNetState').textContent=n+' ACTIVE';
+    if(n===0) setSys('IDLE','idle');
   }
 
   function renderSenderCard(name){
@@ -620,6 +654,14 @@ function initSender() {
     fetch('/stream/'+encodeURIComponent(name),{method:'DELETE'}).catch(()=>{});
     const card=document.getElementById('scard_'+name);
     if(card) card.remove();
+    const list=document.getElementById('senderStreamList');
+    if(list && list.children.length===0){
+      const ph=document.createElement('div');
+      ph.className='no-streams';
+      ph.style.cssText='font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);';
+      ph.textContent='No active streams.';
+      list.appendChild(ph);
+    }
     updateSenderCount();
     log('Stream stopped: '+name,'warn');
   };
@@ -654,9 +696,27 @@ function initSender() {
     let stream;
     try{
       if(source==='browser'){
-        stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+        stream=await navigator.mediaDevices.getUserMedia({
+          audio:{
+            echoCancellation:false,
+            noiseSuppression:false,
+            autoGainControl:false,
+            channelCount:2,
+            sampleRate:48000
+          },
+          video:false
+        });
       } else {
-        stream=await navigator.mediaDevices.getDisplayMedia({audio:true,video:true});
+        stream=await navigator.mediaDevices.getDisplayMedia({
+          audio:{
+            echoCancellation:false,
+            noiseSuppression:false,
+            autoGainControl:false,
+            channelCount:2,
+            sampleRate:48000
+          },
+          video:true
+        });
         stream.getVideoTracks().forEach(t=>t.stop());
       }
     } catch(err){
@@ -667,9 +727,18 @@ function initSender() {
 
     try{
       const pc2=makePC();
-      stream.getAudioTracks().forEach(t=>pc2.addTrack(t,stream));
 
-      const audioCtxS=new(window.AudioContext||window.webkitAudioContext)();
+      // Force Opus codec with high quality settings
+      const [audioTrack] = stream.getAudioTracks();
+      const sender = pc2.addTrack(audioTrack, stream);
+      // Apply sender encoding parameters for quality
+      const params = sender.getParameters();
+      if(!params.encodings) params.encodings = [{}];
+      params.encodings[0].maxBitrate = 192000;
+      params.encodings[0].priority   = 'high';
+      sender.setParameters(params).catch(()=>{});
+
+      const audioCtxS=new(window.AudioContext||window.webkitAudioContext)({sampleRate:48000});
       const src2=audioCtxS.createMediaStreamSource(stream);
       const an2=audioCtxS.createAnalyser();
       an2.fftSize=256;
@@ -677,6 +746,7 @@ function initSender() {
       analyserNodes.push(an2);
 
       pc2.onconnectionstatechange=()=>{
+        log('['+name+'] PC: '+pc2.connectionState);
         if(pc2.connectionState==='failed'||pc2.connectionState==='disconnected'){
           log('Sender PC lost for '+name+'. Reconnecting...','warn');
           delete activeConnections[name];
@@ -697,7 +767,6 @@ function initSender() {
       updateSenderCount();
       log('Stream live: '+name);
 
-      // VU meter animation
       function vuTick(){
         if(!activeConnections[name]) return;
         const data=new Uint8Array(an2.frequencyBinCount);

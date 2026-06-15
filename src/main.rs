@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use axum::{
     extract::State,
-    response::Html,
+    response::{Html, Redirect},
     routing::{get, post, delete},
     Json, Router,
 };
@@ -41,7 +41,7 @@ use webrtc::{
 };
 use webrtc_ice::udp_network::{EphemeralUDP, UDPNetwork};
 
-// ── Request / Response types ──────────────────────────────────────────────────
+// ── Request / Response types ─────────────────────────────────────────────────
 
 #[derive(Deserialize)]
 struct SenderOfferRequest {
@@ -61,15 +61,16 @@ struct StreamsResponse {
     streams: Vec<String>,
 }
 
-// ── App state ─────────────────────────────────────────────────────────────────
+// ── App state ────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
 struct AppState {
-    api:     Arc<webrtc::api::API>,
-    streams: Arc<DashMap<String, Arc<TrackLocalStaticSample>>>,
+    api:      Arc<webrtc::api::API>,
+    streams:  Arc<DashMap<String, Arc<TrackLocalStaticSample>>>,
+    cert_pem: Arc<String>,
 }
 
-// ── LAN IP detection ──────────────────────────────────────────────────────────
+// ── LAN IP ───────────────────────────────────────────────────────────────────
 
 fn local_lan_ip() -> String {
     UdpSocket::bind("0.0.0.0:0")
@@ -78,7 +79,7 @@ fn local_lan_ip() -> String {
         .unwrap_or_else(|_| "127.0.0.1".to_string())
 }
 
-// ── Self-signed TLS cert ──────────────────────────────────────────────────────
+// ── Self-signed TLS cert ─────────────────────────────────────────────────────
 
 fn make_self_signed_cert(lan_ip: &str) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut params = CertificateParams::new(vec![
@@ -92,7 +93,8 @@ fn make_self_signed_cert(lan_ip: &str) -> Result<(Vec<u8>, Vec<u8>)> {
     if let Ok(ip) = lan_ip.parse::<std::net::IpAddr>() {
         params.subject_alt_names.push(SanType::IpAddress(ip));
     }
-    params.subject_alt_names.push(SanType::IpAddress("127.0.0.1".parse().unwrap()));
+    params.subject_alt_names
+        .push(SanType::IpAddress("127.0.0.1".parse().unwrap()));
 
     let key_pair = rcgen::KeyPair::generate()
         .map_err(|e| anyhow!("KeyPair::generate: {e}"))?;
@@ -125,39 +127,51 @@ async fn main() -> Result<()> {
             .with_media_engine(media_engine)
             .with_interceptor_registry(registry)
             .with_setting_engine(setting_engine)
-            .build()
+            .build(),
     );
+
+    let lan_ip = local_lan_ip();
+    println!("Detected LAN IP : {lan_ip}");
+
+    let (cert_pem_bytes, key_pem_bytes) = make_self_signed_cert(&lan_ip)?;
+    let cert_pem_str = String::from_utf8(cert_pem_bytes.clone()).unwrap_or_default();
+
+    match std::fs::write("cert.pem", &cert_pem_bytes) {
+        Ok(_)  => println!("cert.pem written (share with devices to trust)"),
+        Err(e) => eprintln!("Warning: could not write cert.pem: {e}"),
+    }
+
+    let tls_config = RustlsConfig::from_pem(cert_pem_bytes, key_pem_bytes)
+        .await
+        .map_err(|e| anyhow!("TLS config error: {e}"))?;
 
     let state = AppState {
         api,
-        streams: Arc::new(DashMap::new()),
+        streams:  Arc::new(DashMap::new()),
+        cert_pem: Arc::new(cert_pem_str),
     };
 
     let app = Router::new()
-        .route("/",               get(index_handler))
+        // ── Pages
+        .route("/",         get(index_handler))
+        .route("/sender",   get(sender_redirect))
+        .route("/receiver", get(receiver_redirect))
+        .route("/cert",     get(cert_page_handler))
+        .route("/cert.pem", get(cert_download_handler))
+        // ── API
         .route("/streams",        get(list_streams))
         .route("/sender/offer",   post(handle_sender_offer))
         .route("/receiver/offer", post(handle_receiver_offer))
         .route("/stream/{name}",  delete(remove_stream))
         .with_state(state);
 
-    let lan_ip = local_lan_ip();
-    println!("Detected LAN IP : {lan_ip}");
-
-    let (cert_pem, key_pem) = make_self_signed_cert(&lan_ip)?;
-    match std::fs::write("cert.pem", &cert_pem) {
-        Ok(_)  => println!("cert.pem written"),
-        Err(e) => eprintln!("Warning: could not write cert.pem: {e}"),
-    }
-
-    let tls_config = RustlsConfig::from_pem(cert_pem, key_pem)
-        .await
-        .map_err(|e| anyhow!("TLS config error: {e}"))?;
-
     let bind_addr: std::net::SocketAddr = "0.0.0.0:8443".parse()?;
-    println!("Listening on  https://{lan_ip}:8443");
-    println!("Sender   →  https://{lan_ip}:8443/?role=sender");
-    println!("Receiver →  https://{lan_ip}:8443");
+    println!("─────────────────────────────────────────────");
+    println!(" Trust cert first : https://{lan_ip}:8443/cert");
+    println!(" Receiver         : https://{lan_ip}:8443");
+    println!(" Receiver (url)   : https://{lan_ip}:8443/receiver");
+    println!(" Sender           : https://{lan_ip}:8443/sender");
+    println!("─────────────────────────────────────────────");
 
     axum_server::bind_rustls(bind_addr, tls_config)
         .serve(app.into_make_service())
@@ -165,11 +179,84 @@ async fn main() -> Result<()> {
         .map_err(|e| anyhow!("server error: {e}"))
 }
 
-// ── Handlers ──────────────────────────────────────────────────────────────────
+// ── Page handlers ─────────────────────────────────────────────────────────────
 
 async fn index_handler() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
 }
+
+async fn sender_redirect() -> Redirect {
+    Redirect::to("/?role=sender")
+}
+
+async fn receiver_redirect() -> Redirect {
+    Redirect::to("/")
+}
+
+async fn cert_page_handler(
+    State(state): State<AppState>,
+) -> Html<String> {
+    let pem = state.cert_pem.replace('\n', "\\n");
+    let html = format!(r#"<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Y4Z // Trust Certificate</title>
+  <style>
+    *{{box-sizing:border-box;margin:0;padding:0}}
+    body{{background:#050608;color:#d1d5db;font-family:'Share Tech Mono',monospace;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          min-height:100dvh;padding:24px;gap:20px;}}
+    h1{{color:#00f0ff;font-size:1.4rem;letter-spacing:3px;text-transform:uppercase;text-align:center;}}
+    p{{color:#6b7280;font-size:0.85rem;max-width:500px;text-align:center;line-height:1.6;}}
+    .card{{background:rgba(10,12,16,0.92);border:1px solid rgba(0,240,255,0.3);
+           padding:20px;max-width:500px;width:100%;display:flex;flex-direction:column;gap:12px;}}
+    .step{{display:flex;gap:10px;align-items:flex-start;}}
+    .num{{color:#00f0ff;font-size:1rem;min-width:24px;}}
+    .desc{{color:#d1d5db;font-size:0.82rem;line-height:1.5;}}
+    .desc b{{color:#fcee0a;}}
+    a.btn{{display:block;text-align:center;padding:12px;background:rgba(0,240,255,0.08);
+            border:1px solid #00f0ff;color:#00f0ff;text-decoration:none;
+            font-size:0.9rem;letter-spacing:2px;transition:background 0.2s;}}
+    a.btn:hover{{background:#00f0ff;color:#000;}}
+    a.link{{color:#00f0ff;font-size:0.8rem;text-align:center;display:block;margin-top:4px;}}
+    .warn{{color:#ff8800;font-size:0.78rem;text-align:center;}}
+  </style>
+</head>
+<body>
+  <h1>// Trust Certificate</h1>
+  <p>To use Audio_Sync_LINK on this device, you need to trust the self-signed certificate once.</p>
+  <div class="card">
+    <div class="step"><span class="num">1.</span><span class="desc">Tap the button below to <b>download cert.pem</b> to this device.</span></div>
+    <a class="btn" href="/cert.pem" download="y4z-cert.pem">⬇ Download cert.pem</a>
+    <div class="step"><span class="num">2.</span><span class="desc"><b>Android:</b> Settings → Security → Install certificate → CA certificate → pick the file.</span></div>
+    <div class="step"><span class="num">2.</span><span class="desc"><b>iOS:</b> Open the .pem file → it installs a profile. Then Settings → General → VPN &amp; Device Management → trust it. Then Settings → About → Certificate Trust Settings → enable it.</span></div>
+    <div class="step"><span class="num">3.</span><span class="desc"><b>Desktop Chrome/Firefox:</b> Navigate to the URL below and click <b>Advanced → Proceed</b>. No install needed.</span></div>
+    <div class="step"><span class="num">4.</span><span class="desc">Come back here and open the app links below.</span></div>
+  </div>
+  <div class="card">
+    <a class="btn" href="/">▶ Open Receiver</a>
+    <a class="btn" href="/?role=sender">▶ Open Sender</a>
+  </div>
+  <div class="warn">Note: certificate is re-generated on each server restart. Re-trust if you restart the server.</div>
+</body>
+</html>
+"#);
+    Html(html)
+}
+
+async fn cert_download_handler(
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/x-pem-file"),
+         (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"y4z-cert.pem\"")],
+        state.cert_pem.as_bytes().to_vec(),
+    )
+}
+
+// ── API handlers ──────────────────────────────────────────────────────────────
 
 async fn list_streams(
     State(state): State<AppState>,
@@ -199,7 +286,8 @@ async fn handle_sender_offer(
             mime_type:     MIME_TYPE_OPUS.to_owned(),
             clock_rate:    48_000,
             channels:      2,
-            sdp_fmtp_line: "minptime=10;useinbandfec=1;stereo=1".to_string(),
+            // Enable FEC + DTX for better resilience on LAN
+            sdp_fmtp_line: "minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1".to_string(),
             ..Default::default()
         },
         name.clone(),
@@ -208,7 +296,7 @@ async fn handle_sender_offer(
     state.streams.insert(name.clone(), Arc::clone(&track));
     println!("[stream] registered: {name} (source={source})");
 
-    // ── System audio: server-side cpal capture ────────────────────────────────
+    // System audio: server-side cpal capture
     if source == "system" {
         let rt_handle = Handle::current();
         let name2 = name.clone();
@@ -218,26 +306,13 @@ async fn handle_sender_offer(
             }
         });
 
-        let pc = build_peer_connection(&state, false).await;
-        pc.on_peer_connection_state_change(Box::new({
-            let name3   = name.clone();
-            let streams = Arc::clone(&state.streams);
-            move |s: RTCPeerConnectionState| {
-                let name3   = name3.clone();
-                let streams = Arc::clone(&streams);
-                println!("[sender/system] [{name3}] PC state: {s}");
-                if matches!(s, RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed) {
-                    streams.remove(&name3);
-                    println!("[stream] unregistered: {name3}");
-                }
-                Box::pin(async {})
-            }
-        }));
+        let pc = build_peer_connection(&state).await;
+        attach_state_cleanup(pc.clone(), name.clone(), Arc::clone(&state.streams), "system");
         return negotiate_and_answer(pc, req.sdp).await;
     }
 
-    // ── Browser / display audio: inbound WebRTC from browser ──────────────────
-    let pc = build_peer_connection(&state, true).await;
+    // Browser / display audio: inbound WebRTC
+    let pc = build_peer_connection(&state).await;
 
     pc.on_track(Box::new({
         let relay_track = Arc::clone(&track);
@@ -248,8 +323,6 @@ async fn handle_sender_offer(
             println!("[sender/browser] [{name3}] inbound track: {} {}",
                 remote_track.kind(), remote_track.id());
             tokio::spawn(async move {
-                // read_rtp() returns Result<(rtp::packet::Packet, Attributes)>
-                // Forward only the Opus payload bytes from each RTP packet.
                 while let Ok((rtp_pkt, _)) = remote_track.read_rtp().await {
                     let payload = Bytes::copy_from_slice(&rtp_pkt.payload);
                     let _ = relay.write_sample(&Sample {
@@ -264,21 +337,7 @@ async fn handle_sender_offer(
         }
     }));
 
-    pc.on_peer_connection_state_change(Box::new({
-        let name2   = name.clone();
-        let streams = Arc::clone(&state.streams);
-        move |s: RTCPeerConnectionState| {
-            let name2   = name2.clone();
-            let streams = Arc::clone(&streams);
-            println!("[sender/browser] [{name2}] PC state: {s}");
-            if matches!(s, RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed) {
-                streams.remove(&name2);
-                println!("[stream] unregistered: {name2}");
-            }
-            Box::pin(async {})
-        }
-    }));
-
+    attach_state_cleanup(pc.clone(), name.clone(), Arc::clone(&state.streams), "browser");
     negotiate_and_answer(pc, req.sdp).await
 }
 
@@ -286,7 +345,7 @@ async fn handle_receiver_offer(
     State(state): State<AppState>,
     Json(req): Json<ReceiverOfferRequest>,
 ) -> Json<RTCSessionDescription> {
-    let pc = build_peer_connection(&state, false).await;
+    let pc = build_peer_connection(&state).await;
 
     for stream_name in &req.streams {
         if let Some(track) = state.streams.get(stream_name) {
@@ -314,9 +373,26 @@ async fn handle_receiver_offer(
 
 // ── WebRTC helpers ────────────────────────────────────────────────────────────
 
+fn attach_state_cleanup(
+    pc:      Arc<webrtc::peer_connection::RTCPeerConnection>,
+    name:    String,
+    streams: Arc<DashMap<String, Arc<TrackLocalStaticSample>>>,
+    tag:     &'static str,
+) {
+    pc.on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
+        let name    = name.clone();
+        let streams = Arc::clone(&streams);
+        println!("[sender/{tag}] [{name}] PC state: {s}");
+        if matches!(s, RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed) {
+            streams.remove(&name);
+            println!("[stream] unregistered: {name}");
+        }
+        Box::pin(async {})
+    }));
+}
+
 async fn build_peer_connection(
     state: &AppState,
-    _is_sender: bool,
 ) -> Arc<webrtc::peer_connection::RTCPeerConnection> {
     let config = RTCConfiguration {
         ice_servers: vec![RTCIceServer {
@@ -327,12 +403,12 @@ async fn build_peer_connection(
     };
     Arc::new(
         state.api.new_peer_connection(config).await
-            .expect("failed to create peer connection")
+            .expect("failed to create peer connection"),
     )
 }
 
 async fn negotiate_and_answer(
-    pc: Arc<webrtc::peer_connection::RTCPeerConnection>,
+    pc:    Arc<webrtc::peer_connection::RTCPeerConnection>,
     offer: RTCSessionDescription,
 ) -> Json<RTCSessionDescription> {
     pc.set_remote_description(offer).await
@@ -408,8 +484,8 @@ fn choose_input_device() -> Result<cpal::Device> {
 }
 
 async fn write_encoded_frame(
-    track: Arc<TrackLocalStaticSample>,
-    payload: Vec<u8>,
+    track:       Arc<TrackLocalStaticSample>,
+    payload:     Vec<u8>,
     duration_ms: u64,
 ) {
     let _ = track.write_sample(&Sample {
@@ -420,7 +496,7 @@ async fn write_encoded_frame(
 }
 
 fn start_audio_capture(
-    track: Arc<TrackLocalStaticSample>,
+    track:     Arc<TrackLocalStaticSample>,
     rt_handle: Handle,
 ) -> Result<()> {
     let device  = choose_input_device()?;
@@ -434,16 +510,20 @@ fn start_audio_capture(
 
     const OPUS_SR:    usize = 48_000;
     const OPUS_CH:    usize = 2;
-    const FRAME_SIZE: usize = 480;
+    // 20 ms frames (960 samples @ 48k) — standard Opus frame, reduces overhead
+    const FRAME_SIZE: usize = 960;
+    const DURATION_MS: u64  = 20;
 
     let mut encoder = opus::Encoder::new(
         OPUS_SR as u32,
         opus::Channels::Stereo,
         opus::Application::Audio,
     )?;
-    encoder.set_bitrate(opus::Bitrate::Bits(128_000))?;
+    // Higher bitrate = better quality on LAN
+    encoder.set_bitrate(opus::Bitrate::Bits(192_000))?;
     encoder.set_vbr(true)?;
     encoder.set_inband_fec(true)?;
+    encoder.set_packet_loss_perc(5)?;
 
     fn make_callback(
         track:       Arc<TrackLocalStaticSample>,
@@ -481,7 +561,7 @@ fn start_audio_capture(
                 if let Ok(n) = encoder.encode(&frame, &mut out) {
                     out.truncate(n);
                     rt_handle.spawn(write_encoded_frame(
-                        Arc::clone(&track), out, 10,
+                        Arc::clone(&track), out, DURATION_MS,
                     ));
                 }
             }
@@ -535,6 +615,6 @@ fn start_audio_capture(
     };
 
     stream.play()?;
-    println!("[cpal] audio capture started");
+    println!("[cpal] audio capture started (20 ms frames / 192 kbps)");
     loop { std::thread::sleep(std::time::Duration::from_secs(1)); }
 }
