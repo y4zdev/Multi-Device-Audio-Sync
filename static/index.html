@@ -59,17 +59,26 @@
     button.warn-btn{border-color:var(--neon-orange);color:var(--neon-orange);}
     button.warn-btn:hover{background:var(--neon-orange);color:#000;}
     button:disabled{opacity:0.35;cursor:not-allowed;}
-    .stream-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;}
-    .stream-card{border:1px solid rgba(0,240,255,0.2);padding:8px 10px;display:flex;align-items:center;gap:8px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);transition:background 0.2s;}
+    .stream-list{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;}
+    .stream-card{border:1px solid rgba(0,240,255,0.2);padding:8px 10px;display:flex;flex-direction:column;gap:6px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);transition:background 0.2s;}
     .stream-card:hover{background:rgba(0,240,255,0.05);}
-    .stream-card input[type=checkbox]{accent-color:var(--neon-cyan);width:14px;height:14px;cursor:pointer;}
-    .stream-name{flex:1;font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);}
-    .stream-state{font-family:var(--font-mono);font-size:0.65rem;width:70px;text-align:right;}
-    .stream-state.live{color:var(--neon-green);}
-    .stream-state.err{color:var(--neon-magenta);}
-    .vol-row{display:flex;align-items:center;gap:6px;margin-top:4px;}
-    .vol-row input[type=range]{flex:1;accent-color:var(--neon-cyan);height:4px;cursor:pointer;}
-    .vol-label{font-family:var(--font-mono);font-size:0.65rem;color:var(--text-muted);min-width:28px;text-align:right;}
+    .stream-card-row{display:flex;align-items:center;gap:8px;}
+    .stream-name{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-cyan);flex:1;}
+    .scard-badge{font-family:var(--font-mono);font-size:0.65rem;padding:2px 6px;border:1px solid;clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px);}
+    .scard-badge.live{color:var(--neon-green);border-color:var(--neon-green);}
+    .scard-badge.wait{color:var(--neon-yellow);border-color:var(--neon-yellow);}
+    .scard-badge.manager{color:var(--neon-orange);border-color:var(--neon-orange);}
+    .vol-row{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);}
+    .vol-row input[type=range]{flex:1;accent-color:var(--neon-cyan);cursor:pointer;}
+    .vol-val{min-width:36px;text-align:right;color:var(--neon-yellow);}
+    .vu-bar{height:4px;background:rgba(0,240,255,0.08);overflow:hidden;}
+    .vu-fill{height:100%;width:0%;background:var(--neon-cyan);box-shadow:0 0 6px var(--neon-cyan);transition:width 0.08s linear;}
+    .jitter-row{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:0.68rem;color:var(--text-muted);}
+    .jitter-row input[type=range]{flex:1;accent-color:var(--neon-magenta);cursor:pointer;}
+    .field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
+    .field label{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;}
+    .field input{background:rgba(0,0,0,0.5);border:1px solid rgba(0,240,255,0.3);color:var(--text-main);padding:6px 8px;font-family:var(--font-mono);font-size:0.8rem;width:100%;outline:none;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
+    .field input:focus{border-color:var(--neon-cyan);}
     .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
     .dk{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;}
     .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -78,26 +87,11 @@
     .lt{color:var(--text-muted);margin-right:4px;}
     .le{color:var(--neon-magenta);}
     .lw{color:var(--neon-yellow);}
-    .energy-track{height:4px;background:rgba(0,240,255,0.08);margin-top:8px;}
-    .energy-fill{height:100%;width:0%;background:var(--neon-cyan);box-shadow:0 0 8px var(--neon-cyan);transition:width 0.1s linear;}
-    .reconnect-overlay{position:fixed;inset:0;background:rgba(5,6,8,0.88);z-index:100;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
-    .reconnect-overlay.show{display:flex;}
-    .reconnect-msg{font-family:var(--font-mono);font-size:1rem;color:var(--neon-yellow);text-align:center;}
-    .spin{width:40px;height:40px;border:2px solid rgba(0,240,255,0.2);border-top:2px solid var(--neon-cyan);border-radius:50%;animation:spin 0.8s linear infinite;}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    audio{display:none;}
-    @media(max-width:800px){.core{flex-direction:column;}.side{width:100%;flex:0 0 auto;}.viz-wrap{min-height:35vh;}}
+    @media(max-width:800px){.core{flex-direction:column;}.side{width:100%;flex:0 0 auto;}.viz-wrap{min-height:30vh;}}
   </style>
 </head>
 <body>
 <div class="grid-bg"></div>
-
-<div class="reconnect-overlay" id="reconnectOverlay">
-  <div class="spin"></div>
-  <div class="reconnect-msg">SERVER_OFFLINE</div>
-  <div style="font-family:var(--font-mono);font-size:0.75rem;color:#6b7280;">Attempting reconnect...</div>
-</div>
-
 <div class="hud">
   <header class="header-bar">
     <div class="brand">
@@ -106,329 +100,411 @@
     </div>
     <div class="header-right">
       <a class="nav-link" href="/sender">▶ Sender</a>
-      <span class="role-badge">RECEIVER</span>
+      <a class="nav-link" href="/manager">▶ Manager</a>
+      <span class="role-badge">SPEAKER</span>
       <span class="sys-dot" id="sysDot"></span>
       <span id="sysText" style="font-family:var(--font-mono);font-size:0.8rem;">IDLE</span>
     </div>
   </header>
-
   <main class="core">
     <section class="viz-wrap">
       <canvas id="viz"></canvas>
-      <div class="viz-label">› <span id="vizLabel">AWAITING_SIGNAL</span></div>
+      <div class="viz-label">› <span id="vizLabel">RX_STANDBY</span></div>
     </section>
     <aside class="side">
+
+      <!-- [01] Device identity -->
       <div class="panel">
-        <div class="panel-hdr"><span>[01] Streams</span><span id="streamCount">0 found</span></div>
-        <div class="stream-list" id="streamList">
-          <div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">Fetching streams...</div>
+        <div class="panel-hdr"><span>[01] Speaker Identity</span><span id="devRegState" style="color:var(--text-muted);">UNREGISTERED</span></div>
+        <div class="field">
+          <label>Speaker Name</label>
+          <input type="text" id="deviceName" placeholder="e.g. Living Room, Headphones" maxlength="40">
         </div>
-        <div class="btn-row" style="margin-top:10px;">
-          <button class="primary" id="connectBtn">▶ Connect Selected</button>
-          <button id="refreshBtn">Refresh</button>
-          <button class="warn-btn" id="forcePlayBtn" style="display:none;">Force Play</button>
+        <div class="data-grid" style="margin-bottom:8px;">
+          <div><div class="dk">DEVICE ID</div><div class="dv" id="devIdDisplay" style="font-size:0.65rem;word-break:break-all;">—</div></div>
+          <div><div class="dk">STATUS</div><div class="dv" id="devStatusDisplay">OFFLINE</div></div>
+        </div>
+        <div class="btn-row">
+          <button class="primary" id="registerDevBtn">⬆ Register Speaker</button>
         </div>
       </div>
+
+      <!-- [02] Available Streams -->
       <div class="panel">
-        <div class="panel-hdr"><span>[02] Status</span></div>
+        <div class="panel-hdr"><span>[02] Available Streams</span><span id="streamCount">0</span></div>
+        <div id="streamList" class="stream-list">
+          <div id="noStreams" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">Waiting for streams…</div>
+        </div>
+      </div>
+
+      <!-- [03] Status -->
+      <div class="panel">
+        <div class="panel-hdr"><span>[03] Status</span></div>
         <div class="data-grid">
-          <div><div class="dk">NET.STATE</div><div class="dv" id="netState">OFFLINE</div></div>
-          <div><div class="dk">ICE</div><div class="dv" id="iceState">STANDBY</div></div>
-          <div><div class="dk">TRACKS</div><div class="dv" id="trackCount">0</div></div>
-          <div><div class="dk">PLAYBACK</div><div class="dv" id="playbackState">HALTED</div></div>
-        </div>
-        <div class="energy-track"><div class="energy-fill" id="energyFill"></div></div>
-      </div>
-      <div class="panel">
-        <div class="panel-hdr"><span>[03] Active Streams</span></div>
-        <div id="activeStreamsList" style="display:flex;flex-direction:column;gap:6px;"></div>
-      </div>
-      <div class="panel" style="padding:10px 14px;">
-        <div class="panel-hdr"><span>[04] Jitter Buffer</span></div>
-        <div class="vol-row">
-          <input type="range" min="0" max="300" step="10" value="80" id="jitterSlider">
-          <span class="vol-label" id="jitterLabel">80ms</span>
+          <div><div class="dk">CONNECTED</div><div class="dv" id="connCount">0</div></div>
+          <div><div class="dk">WS</div><div class="dv" id="wsState">DISCONNECTED</div></div>
+          <div><div class="dk">HEARTBEAT</div><div class="dv" id="hbState">—</div></div>
+          <div><div class="dk">DEVICE</div><div class="dv" id="devNameDisplay">—</div></div>
         </div>
       </div>
+
       <div class="terminal" id="logBox"></div>
     </aside>
   </main>
 </div>
-
 <script>
+// ── Device identity ───────────────────────────────────────────────────────
+let deviceId   = sessionStorage.getItem('receiver_device_id') || '';
+let deviceName = sessionStorage.getItem('receiver_device_name') || '';
+let registered = false;
+let ws         = null;
+let hbInterval = null;
+
+if (deviceId)   document.getElementById('devIdDisplay').textContent = deviceId.slice(0,18)+'...';
+if (deviceName) { document.getElementById('deviceName').value = deviceName; document.getElementById('devNameDisplay').textContent = deviceName; }
+
+async function registerDevice() {
+  const name = document.getElementById('deviceName').value.trim();
+  if (!name) { log('Enter a speaker name first.', 'warn'); return; }
+  try {
+    const body = { name, role: 'speaker' };
+    if (deviceId) body.id = deviceId;
+    const res = await fetch('/device/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const dev = await res.json();
+    deviceId   = dev.id;
+    deviceName = dev.name;
+    registered = true;
+    sessionStorage.setItem('receiver_device_id',   deviceId);
+    sessionStorage.setItem('receiver_device_name', deviceName);
+    document.getElementById('devIdDisplay').textContent     = deviceId.slice(0,18)+'...';
+    document.getElementById('devStatusDisplay').textContent = 'ONLINE';
+    document.getElementById('devNameDisplay').textContent   = deviceName;
+    document.getElementById('devRegState').textContent      = 'REGISTERED';
+    document.getElementById('devRegState').style.color      = 'var(--neon-green)';
+    log('Speaker registered: ' + deviceName + ' [' + deviceId.slice(0,8) + ']');
+    connectWs();
+    startHeartbeat();
+  } catch (err) {
+    log('Registration failed: ' + err.message, 'err');
+  }
+}
+
+document.getElementById('registerDevBtn').addEventListener('click', registerDevice);
+
+// ── WebSocket control bus ─────────────────────────────────────────────────
+function connectWs() {
+  if (ws && ws.readyState < 2) return;
+  ws = new WebSocket('wss://' + location.host + '/ws');
+  ws.onopen = () => {
+    document.getElementById('wsState').textContent = 'CONNECTED';
+    log('WS connected. Live stream updates active.');
+    // On reconnect, refresh stream list from server
+    refreshStreams();
+  };
+  ws.onclose = () => {
+    document.getElementById('wsState').textContent = 'DISCONNECTED';
+    setTimeout(connectWs, 4000);
+  };
+  ws.onerror = () => { document.getElementById('wsState').textContent = 'ERROR'; };
+  ws.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      handleWsEvent(msg);
+    } catch {}
+  };
+}
+
+function handleWsEvent(msg) {
+  switch (msg.type) {
+    case 'stream_added':
+      log('Stream available: ' + msg.name);
+      addStreamCard(msg.name, false);
+      break;
+    case 'stream_removed':
+      log('Stream gone: ' + msg.name, 'warn');
+      removeStreamCard(msg.name);
+      break;
+    case 'set_volume':
+      // Manager sent a volume command targeting this device
+      if (msg.device_id === deviceId) {
+        applyRemoteVolume(msg.stream_name, msg.volume);
+      }
+      break;
+    case 'route_changed':
+      // Manager assigned/unassigned a stream to this speaker
+      if (msg.speaker_id === deviceId) {
+        if (msg.connected) {
+          log('[Manager] Assigned stream: ' + msg.source, 'warn');
+          addStreamCard(msg.source, true);
+        } else {
+          log('[Manager] Removed stream: ' + msg.source, 'warn');
+          removeStreamCard(msg.source);
+        }
+      }
+      break;
+  }
+}
+
+function applyRemoteVolume(streamName, volume) {
+  const gain = gainNodes[streamName];
+  if (gain) {
+    gain.gain.setTargetAtTime(volume, gain.context.currentTime, 0.02);
+    const slider = document.getElementById('vol_' + streamName);
+    const valEl  = document.getElementById('volval_' + streamName);
+    if (slider) slider.value = volume * 100;
+    if (valEl)  valEl.textContent = Math.round(volume * 100) + '%';
+    log('[Manager] Volume set: ' + streamName + ' -> ' + Math.round(volume * 100) + '%', 'warn');
+  }
+}
+
+function startHeartbeat() {
+  if (hbInterval) clearInterval(hbInterval);
+  hbInterval = setInterval(() => {
+    if (ws && ws.readyState === 1 && deviceId) {
+      ws.send(JSON.stringify({ type: 'heartbeat', device_id: deviceId }));
+      const t = new Date().toLocaleTimeString('en-US', { hour12: false });
+      document.getElementById('hbState').textContent = t;
+    }
+  }, 10000);
+}
+
+// ── Stream state ─────────────────────────────────────────────────────────────
+const peerConns   = {};
+const gainNodes   = {};
+const analyserMap = {};
+const jitterMs    = {};
+
+async function refreshStreams() {
+  try {
+    const res = await fetch('/streams', { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return;
+    const names = await res.json();
+    names.forEach(n => addStreamCard(n, false));
+    document.getElementById('streamCount').textContent = names.length;
+    const ph = document.getElementById('noStreams');
+    if (names.length > 0 && ph) ph.remove();
+  } catch {}
+}
+
+function addStreamCard(name, managerAssigned) {
+  const list = document.getElementById('streamList');
+  if (document.getElementById('scard_' + name)) return;
+  const ph = document.getElementById('noStreams'); if (ph) ph.remove();
+
+  const card = document.createElement('div');
+  card.id = 'scard_' + name;
+  card.className = 'stream-card';
+
+  const badge = managerAssigned
+    ? '<span class="scard-badge manager">ASSIGNED</span>'
+    : '<span class="scard-badge wait" id="badge_' + name + '">AVAILABLE</span>';
+
+  card.innerHTML = `
+    <div class="stream-card-row">
+      <span class="stream-name">○ ${name}</span>
+      ${badge}
+      <button style="flex:0;min-width:56px;padding:3px 6px;font-size:0.68rem;" onclick="toggleSubscribe('${name}')"
+        id="subbtn_${name}">▶ SUB</button>
+      <button class="danger" style="flex:0;min-width:46px;padding:3px 6px;font-size:0.68rem;" onclick="disconnectStream('${name}')">■</button>
+    </div>
+    <div class="vol-row">
+      <span>VOL</span>
+      <input type="range" min="0" max="100" value="100" id="vol_${name}"
+        oninput="setGain('${name}',this.value/100);document.getElementById('volval_${name}').textContent=this.value+'%'">
+      <span class="vol-val" id="volval_${name}">100%</span>
+    </div>
+    <div class="jitter-row">
+      <span>JITTER</span>
+      <input type="range" min="0" max="200" value="40" id="jitter_${name}"
+        oninput="setJitter('${name}',+this.value);document.getElementById('jitterval_${name}').textContent=this.value+'ms'">
+      <span style="min-width:40px;text-align:right;color:var(--neon-magenta);" id="jitterval_${name}">40ms</span>
+    </div>
+    <div class="vu-bar"><div class="vu-fill" id="vu_${name}"></div></div>
+  `;
+  list.appendChild(card);
+  jitterMs[name] = 40;
+  document.getElementById('streamCount').textContent = list.querySelectorAll('.stream-card').length;
+
+  if (managerAssigned) toggleSubscribe(name);
+}
+
+function removeStreamCard(name) {
+  disconnectStream(name);
+  const card = document.getElementById('scard_' + name); if (card) card.remove();
+  const list = document.getElementById('streamList');
+  if (!list.querySelector('.stream-card')) {
+    const ph = document.createElement('div');
+    ph.id = 'noStreams';
+    ph.style.cssText = 'font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);';
+    ph.textContent = 'Waiting for streams…';
+    list.appendChild(ph);
+  }
+  document.getElementById('streamCount').textContent = list.querySelectorAll('.stream-card').length;
+}
+
+window.setGain = function(name, val) {
+  const g = gainNodes[name]; if (g) g.gain.setTargetAtTime(val, g.context.currentTime, 0.02);
+};
+window.setJitter = function(name, ms) { jitterMs[name] = ms; };
+
+window.disconnectStream = function(name) {
+  const pc = peerConns[name]; if (pc) { pc.close(); delete peerConns[name]; }
+  delete gainNodes[name]; delete analyserMap[name]; delete jitterMs[name];
+  const badge = document.getElementById('badge_' + name);
+  if (badge) { badge.className = 'scard-badge wait'; badge.textContent = 'AVAILABLE'; }
+  const btn = document.getElementById('subbtn_' + name);
+  if (btn) btn.textContent = '▶ SUB';
+  updateConnCount();
+  log('Disconnected: ' + name, 'warn');
+};
+
+window.toggleSubscribe = async function(name) {
+  if (peerConns[name]) { window.disconnectStream(name); return; }
+  const btn = document.getElementById('subbtn_' + name);
+  if (btn) btn.textContent = 'CONN...';
+  try {
+    const jit = jitterMs[name] || 40;
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    peerConns[name] = pc;
+
+    pc.addTransceiver('audio', { direction: 'recvonly' });
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    const res = await fetch('/receiver/offer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, jitter_buffer_ms: jit, sdp: pc.localDescription }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const answer = await res.json();
+    await pc.setRemoteDescription(answer);
+
+    const actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+    if (actx.state === 'suspended') await actx.resume();
+
+    pc.ontrack = (ev) => {
+      const src  = actx.createMediaStreamSource(new MediaStream([ev.track]));
+      const gain = actx.createGain();
+      gain.gain.value = parseFloat(document.getElementById('vol_' + name)?.value || 100) / 100;
+      gain.context = actx;
+      const an   = actx.createAnalyser(); an.fftSize = 256;
+      src.connect(gain); gain.connect(an); an.connect(actx.destination);
+      gainNodes[name]   = gain;
+      analyserMap[name] = an;
+
+      const badge = document.getElementById('badge_' + name);
+      if (badge) { badge.className = 'scard-badge live'; badge.textContent = 'LIVE'; }
+      const btn2 = document.getElementById('subbtn_' + name);
+      if (btn2) btn2.textContent = '■ DROP';
+
+      setSys('RECEIVING','live');
+      document.getElementById('vizLabel').textContent = 'RX // ' + name;
+      updateConnCount();
+      log('Subscribed: ' + name);
+
+      function vuTick() {
+        if (!analyserMap[name]) return;
+        const d = new Uint8Array(an.frequencyBinCount);
+        an.getByteFrequencyData(d);
+        const avg = d.reduce((a,b)=>a+b,0)/d.length;
+        const vu  = document.getElementById('vu_' + name);
+        if (vu) vu.style.width = Math.min(100, avg/255*100*2.5) + '%';
+        requestAnimationFrame(vuTick);
+      }
+      vuTick();
+    };
+
+    pc.onconnectionstatechange = () => {
+      log('[' + name + '] ' + pc.connectionState);
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        disconnectStream(name);
+      }
+    };
+  } catch (err) {
+    log('Subscribe failed [' + name + ']: ' + err.message, 'err');
+    if (peerConns[name]) { peerConns[name].close(); delete peerConns[name]; }
+    const btn2 = document.getElementById('subbtn_' + name);
+    if (btn2) btn2.textContent = '▶ SUB';
+  }
+};
+
+function updateConnCount() {
+  const n = Object.keys(peerConns).length;
+  document.getElementById('connCount').textContent = n;
+  if (n === 0) setSys('IDLE', 'idle');
+}
+
+// ── Canvas visualizer ───────────────────────────────────────────────────────
 const canvas = document.getElementById('viz');
 const ctx    = canvas.getContext('2d');
-let analyserNodes = [];
 
-function resizeCanvas(){
-  const r=canvas.parentNode.getBoundingClientRect();
-  const d=window.devicePixelRatio||1;
-  canvas.width=r.width*d;canvas.height=r.height*d;
-  ctx.setTransform(d,0,0,d,0,0);
+function resizeCanvas() {
+  const r = canvas.parentNode.getBoundingClientRect();
+  const d = window.devicePixelRatio || 1;
+  canvas.width = r.width * d; canvas.height = r.height * d;
+  ctx.setTransform(d, 0, 0, d, 0, 0);
 }
-window.addEventListener('resize',resizeCanvas);
+window.addEventListener('resize', resizeCanvas);
 
-function vizLoop(){
-  const w=canvas.clientWidth,h=canvas.clientHeight;
-  ctx.clearRect(0,0,w,h);
-  ctx.strokeStyle='rgba(0,240,255,0.05)';ctx.lineWidth=1;ctx.beginPath();
-  for(let x=0;x<w;x+=40){ctx.moveTo(x,0);ctx.lineTo(x,h);}
-  for(let y=0;y<h;y+=40){ctx.moveTo(0,y);ctx.lineTo(w,y);}
-  ctx.stroke();
-  if(analyserNodes.length===0){
-    ctx.fillStyle='rgba(0,240,255,0.15)';ctx.fillRect(0,h/2-1,w,2);
+function vizLoop() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  const analysers = Object.values(analyserMap);
+  if (analysers.length === 0) {
+    ctx.fillStyle = 'rgba(0,240,255,0.15)'; ctx.fillRect(0, h/2-1, w, 2);
   } else {
-    const colors=['#00f0ff','#ff003c','#fcee0a','#00ff41','#ff8800'];
-    analyserNodes.forEach((an,idx)=>{
-      const col=colors[idx%colors.length];
-      const data=new Uint8Array(an.frequencyBinCount);
+    analysers.forEach((an) => {
+      const data = new Uint8Array(an.frequencyBinCount);
       an.getByteFrequencyData(data);
-      const bars=60,step=Math.floor(data.length/bars),bw=w/bars,cy=h/2;
-      for(let i=0;i<bars;i++){
-        let s=0;for(let j=0;j<step;j++)s+=data[i*step+j]||0;
-        const norm=Math.pow(s/step/255,1.5);
-        const bh=Math.max(2,norm*(h*0.4));
-        ctx.fillStyle=col;ctx.shadowBlur=8*norm;ctx.shadowColor=col;
-        ctx.fillRect(i*bw+1+(idx*2),cy-bh,bw-2,bh);
-        ctx.fillRect(i*bw+1+(idx*2),cy,bw-2,bh);
+      const bars = 60, step = Math.floor(data.length / bars), bw = w / bars, cy = h / 2;
+      for (let i = 0; i < bars; i++) {
+        let s = 0; for (let j = 0; j < step; j++) s += data[i*step+j] || 0;
+        const norm = Math.pow(s/step/255, 1.5);
+        const bh   = Math.max(2, norm * (h * 0.4));
+        ctx.fillStyle = '#00f0ff'; ctx.shadowBlur = 8*norm; ctx.shadowColor = '#00f0ff';
+        ctx.fillRect(i*bw+1, cy-bh, bw-2, bh);
+        ctx.fillRect(i*bw+1, cy,    bw-2, bh);
       }
-      ctx.shadowBlur=0;
+      ctx.shadowBlur = 0;
     });
   }
   requestAnimationFrame(vizLoop);
 }
 
+// ── Logging ─────────────────────────────────────────────────────────────────
 const logEl   = document.getElementById('logBox');
 const sysDot  = document.getElementById('sysDot');
 const sysText = document.getElementById('sysText');
-const overlay = document.getElementById('reconnectOverlay');
 
-function log(msg,type=''){
-  const d=document.createElement('div');
-  d.className='lg'+(type==='err'?' le':type==='warn'?' lw':'');
-  const t=new Date().toLocaleTimeString('en-US',{hour12:false});
-  d.innerHTML=`<span class="lt">[${t}]</span>${msg}`;
-  logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;
+function log(msg, type='') {
+  const d = document.createElement('div');
+  d.className = 'lg' + (type==='err'?' le':type==='warn'?' lw':'');
+  const t = new Date().toLocaleTimeString('en-US', { hour12: false });
+  d.innerHTML = `<span class="lt">[${t}]</span>${msg}`;
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
 }
-function setSys(text,level='idle'){
-  sysText.textContent=text;
-  sysDot.className='sys-dot '+(level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
-}
-function makePC(){
-  return new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}],iceTransportPolicy:'all'});
-}
-async function sendOffer(endpoint,body){
-  const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
-  if(!res.ok)throw new Error(`HTTP ${res.status}`);
-  return res.json();
+function setSys(text, level='idle') {
+  sysText.textContent = text;
+  sysDot.className = 'sys-dot ' + (level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
 }
 
-// ── Single shared AudioContext (critical for iOS / mobile) ────────────────────
-let sharedACtx=null;
-function getACtx(){
-  if(!sharedACtx||sharedACtx.state==='closed')
-    sharedACtx=new(window.AudioContext||window.webkitAudioContext)({latencyHint:'playback',sampleRate:48000});
-  return sharedACtx;
-}
-function resumeACtx(){const c=getACtx();if(c.state==='suspended')c.resume();return c;}
-
-// Resume on first touch/click (mandatory on iOS to avoid silent audio)
-document.addEventListener('touchstart',()=>resumeACtx(),{once:true,passive:true});
-document.addEventListener('click',()=>resumeACtx(),{once:true});
-
-// ── Jitter buffer ─────────────────────────────────────────────────────────────
-let jitterMs=80;
-const jitterSlider=document.getElementById('jitterSlider');
-const jitterLabel =document.getElementById('jitterLabel');
-jitterSlider.addEventListener('input',e=>{
-  jitterMs=parseInt(e.target.value);
-  jitterLabel.textContent=jitterMs+'ms';
-  Object.values(activeStreams).forEach(s=>{if(s.delay)s.delay.delayTime.value=jitterMs/1000;});
-  log('Jitter buffer: '+jitterMs+'ms');
-});
-
-function connectStreamToOutput(stream,audioCtx){
-  const src=audioCtx.createMediaStreamSource(stream);
-  const analyser=audioCtx.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=0.8;
-  const gain=audioCtx.createGain();gain.gain.value=1.0;
-  // Delay node = jitter buffer: smooths bursty WebRTC packet delivery
-  const delay=audioCtx.createDelay(1.0);
-  delay.delayTime.value=jitterMs/1000;
-  src.connect(analyser);
-  src.connect(delay);
-  delay.connect(gain);
-  gain.connect(audioCtx.destination);
-  return{src,analyser,delay,gain};
-}
-
-// ── State ─────────────────────────────────────────────────────────────────────
-let pc=null;
-let activeStreams={};
-let selectedStreams=new Set();
-let backoff=2000;
-let autoReconnectFn=null;
-let serverWasDown=false;
-
-async function fetchStreams(){
-  try{
-    const r=await fetch('/streams',{signal:AbortSignal.timeout(3000)});
-    return(await r.json()).streams||[];
-  }catch{return[];}
-}
-
-async function renderStreamList(){
-  const streams=await fetchStreams();
-  const listEl=document.getElementById('streamList');
-  document.getElementById('streamCount').textContent=streams.length+' found';
-  if(streams.length===0){
-    listEl.innerHTML='<div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No streams available.</div>';
-    return;
-  }
-  listEl.innerHTML='';
-  streams.forEach(name=>{
-    const card=document.createElement('div');card.className='stream-card';
-    const isActive=!!activeStreams[name];
-    card.innerHTML=`<input type="checkbox" id="chk_${name}" ${selectedStreams.has(name)||isActive?'checked':''}><span class="stream-name">${name}</span><span class="stream-state ${isActive?'live':''}">  ${isActive?'● LIVE':'○ IDLE'}</span>`;
-    card.querySelector('input').addEventListener('change',e=>{
-      if(e.target.checked)selectedStreams.add(name);
-      else selectedStreams.delete(name);
-    });
-    if(selectedStreams.has(name)||isActive)selectedStreams.add(name);
-    listEl.appendChild(card);
-  });
-}
-
-function cleanupConnection(){
-  analyserNodes=[];
-  const el=document.getElementById('activeStreamsList');
-  if(el)el.innerHTML='';
-  Object.values(activeStreams).forEach(s=>{
-    try{s.src.disconnect();s.delay.disconnect();s.gain.disconnect();}catch{}
-  });
-  activeStreams={};
-  document.getElementById('trackCount').textContent='0';
-}
-
-async function connect(){
-  if(selectedStreams.size===0){
-    const s=await fetchStreams();s.forEach(n=>selectedStreams.add(n));
-  }
-  if(selectedStreams.size===0){log('No streams to connect to.','warn');return;}
-
-  setSys('CONNECTING','warn');
-  document.getElementById('netState').textContent='INIT';
-
-  try{
-    if(pc){try{pc.close();}catch{}pc=null;}
-    cleanupConnection();
-
-    const audioCtx=resumeACtx();
-    pc=makePC();
-
-    pc.oniceconnectionstatechange=()=>{
-      document.getElementById('iceState').textContent=pc.iceConnectionState.toUpperCase();
-      log('ICE: '+pc.iceConnectionState);
-    };
-
-    pc.onconnectionstatechange=()=>{
-      const s=pc.connectionState;
-      document.getElementById('netState').textContent=s.toUpperCase();
-      if(s==='connected'){setSys('ONLINE','live');backoff=2000;log('Connected: '+[...selectedStreams].join(', '));}
-      if(s==='failed'||s==='disconnected'){
-        setSys('LINK_FAIL','err');
-        log('Link lost. Reconnecting in '+(backoff/1000)+'s...','err');
-        setTimeout(connect,backoff);backoff=Math.min(backoff*2,30000);
-      }
-    };
-
-    let trackIdx=0;
-    const activeEl=document.getElementById('activeStreamsList');
-
-    pc.ontrack=(event)=>{
-      const stream=event.streams[0];
-      const names=[...selectedStreams];
-      const name=names[trackIdx]||'stream_'+trackIdx;
-      trackIdx++;
-      document.getElementById('trackCount').textContent=String(trackIdx);
-
-      // Route through AudioContext with jitter delay — no <audio> element needed
-      const{src,analyser,delay,gain}=connectStreamToOutput(stream,audioCtx);
-      analyserNodes.push(analyser);
-      activeStreams[name]={src,analyser,delay,gain,stream};
-
-      document.getElementById('playbackState').textContent='ACTIVE';
-      document.getElementById('vizLabel').textContent='RX // '+Object.keys(activeStreams).join(' + ');
-      log('Track live: '+name);
-
-      // Per-stream volume control card
-      const wrapper=document.createElement('div');
-      wrapper.style.cssText='display:flex;flex-direction:column;gap:4px;width:100%;';
-      const card=document.createElement('div');card.className='stream-card';
-      card.innerHTML=`<span class="stream-name">${name}</span><span class="stream-state live">● LIVE</span>`;
-      const volRow=document.createElement('div');volRow.className='vol-row';
-      volRow.innerHTML=`<input type="range" min="0" max="2" step="0.01" value="1"><span class="vol-label">100%</span>`;
-      volRow.querySelector('input').addEventListener('input',e=>{
-        gain.gain.value=parseFloat(e.target.value);
-        volRow.querySelector('.vol-label').textContent=Math.round(e.target.value*100)+'%';
-      });
-      wrapper.appendChild(card);wrapper.appendChild(volRow);
-      activeEl.appendChild(wrapper);
-
-      // Energy meter
-      function energyTick(){
-        if(!activeStreams[name])return;
-        const data=new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(data);
-        const avg=data.reduce((a,b)=>a+b,0)/data.length;
-        const ef=document.getElementById('energyFill');
-        if(ef)ef.style.width=Math.min(100,avg/255*100*2)+'%';
-        requestAnimationFrame(energyTick);
-      }
-      energyTick();
-    };
-
-    [...selectedStreams].forEach(()=>pc.addTransceiver('audio',{direction:'recvonly'}));
-
-    const offer=await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    log('Sending offer for: '+[...selectedStreams].join(', '));
-    const answer=await sendOffer('/receiver/offer',{streams:[...selectedStreams],sdp:pc.localDescription});
-    await pc.setRemoteDescription(answer);
-    log('Remote SDP accepted. Waiting for tracks...');
-
-  }catch(err){
-    setSys('FAIL','err');
-    log('Connection failed: '+err.message,'err');
-    setTimeout(connect,backoff);backoff=Math.min(backoff*2,30000);
-  }
-}
-
-autoReconnectFn=()=>{backoff=2000;connect();};
-
-// Server health check
-async function checkServer(){
-  try{
-    await fetch('/streams',{signal:AbortSignal.timeout(3000)});
-    if(serverWasDown){serverWasDown=false;overlay.classList.remove('show');log('Server back online. Reconnecting...','warn');if(autoReconnectFn)autoReconnectFn();}
-  }catch{
-    if(!serverWasDown){serverWasDown=true;overlay.classList.add('show');log('Server unreachable.','err');}
-  }
-}
-setInterval(checkServer,5000);
-
-document.getElementById('connectBtn').addEventListener('click',()=>{backoff=2000;connect();});
-document.getElementById('refreshBtn').addEventListener('click',renderStreamList);
-document.getElementById('forcePlayBtn').addEventListener('click',()=>{
-  resumeACtx();
-  document.getElementById('forcePlayBtn').style.display='none';
-  log('Force play triggered.');
-});
-
-renderStreamList();
-setInterval(renderStreamList,5000);
+// ── Init ──────────────────────────────────────────────────────────────────────
 resizeCanvas();
 requestAnimationFrame(vizLoop);
-log('RECEIVER INIT. Awaiting command.');
+refreshStreams(); // Initial load from REST; WS will take over after registration
+log('RECEIVER READY. Register as speaker to enable remote control.');
+
+if (deviceId && deviceName) {
+  registerDevice();
+}
 </script>
 </body>
 </html>
