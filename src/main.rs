@@ -241,13 +241,13 @@ async fn main() -> Result<()> {
         .route("/receiver/offer", post(handle_receiver_offer))
         .route("/stream/{name}",  delete(remove_stream))
         // Device API
-        .route("/device/register",          post(register_device))
-        .route("/devices",                  get(list_devices))
-        .route("/device/{id}",              delete(remove_device))
-        .route("/device/{id}/volume",       patch(patch_device_volume))
-        .route("/device/{id}/streams",      patch(patch_device_streams))
+        .route("/device/register",     post(register_device))
+        .route("/devices",             get(list_devices))
+        .route("/device/{id}",         delete(remove_device))
+        .route("/device/{id}/volume",  patch(patch_device_volume))
+        .route("/device/{id}/streams", patch(patch_device_streams))
         // WebSocket control bus
-        .route("/ws",                       get(ws_handler))
+        .route("/ws", get(ws_handler))
         .with_state(state);
 
     let bind_addr: std::net::SocketAddr = "0.0.0.0:8443".parse()?;
@@ -278,33 +278,32 @@ async fn manager_handler() -> Html<&'static str> {
     Html(include_str!("../static/manager.html"))
 }
 
-async fn cert_page_handler(
-    State(state): State<AppState>,
-) -> Html<String> {
-    let html = format!(r#"<!doctype html>
+// cert_page_handler serves a static instructions page — no state needed
+async fn cert_page_handler() -> Html<&'static str> {
+    Html(r#"<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Y4Z // Trust Certificate</title>
   <style>
-    *{{box-sizing:border-box;margin:0;padding:0}}
-    body{{background:#050608;color:#d1d5db;font-family:'Share Tech Mono',monospace;
-          display:flex;flex-direction:column;align-items:center;justify-content:center;
-          min-height:100dvh;padding:24px;gap:20px;}}
-    h1{{color:#00f0ff;font-size:1.4rem;letter-spacing:3px;text-transform:uppercase;text-align:center;}}
-    p{{color:#6b7280;font-size:0.85rem;max-width:500px;text-align:center;line-height:1.6;}}
-    .card{{background:rgba(10,12,16,0.92);border:1px solid rgba(0,240,255,0.3);
-           padding:20px;max-width:500px;width:100%;display:flex;flex-direction:column;gap:12px;}}
-    .step{{display:flex;gap:10px;align-items:flex-start;}}
-    .num{{color:#00f0ff;font-size:1rem;min-width:24px;}}
-    .desc{{color:#d1d5db;font-size:0.82rem;line-height:1.5;}}
-    .desc b{{color:#fcee0a;}}
-    a.btn{{display:block;text-align:center;padding:12px;background:rgba(0,240,255,0.08);
-            border:1px solid #00f0ff;color:#00f0ff;text-decoration:none;
-            font-size:0.9rem;letter-spacing:2px;transition:background 0.2s;}}
-    a.btn:hover{{background:#00f0ff;color:#000;}}
-    .warn{{color:#ff8800;font-size:0.78rem;text-align:center;}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#050608;color:#d1d5db;font-family:'Share Tech Mono',monospace;
+         display:flex;flex-direction:column;align-items:center;justify-content:center;
+         min-height:100dvh;padding:24px;gap:20px;}
+    h1{color:#00f0ff;font-size:1.4rem;letter-spacing:3px;text-transform:uppercase;text-align:center;}
+    p{color:#6b7280;font-size:0.85rem;max-width:500px;text-align:center;line-height:1.6;}
+    .card{background:rgba(10,12,16,0.92);border:1px solid rgba(0,240,255,0.3);
+          padding:20px;max-width:500px;width:100%;display:flex;flex-direction:column;gap:12px;}
+    .step{display:flex;gap:10px;align-items:flex-start;}
+    .num{color:#00f0ff;font-size:1rem;min-width:24px;}
+    .desc{color:#d1d5db;font-size:0.82rem;line-height:1.5;}
+    .desc b{color:#fcee0a;}
+    a.btn{display:block;text-align:center;padding:12px;background:rgba(0,240,255,0.08);
+           border:1px solid #00f0ff;color:#00f0ff;text-decoration:none;
+           font-size:0.9rem;letter-spacing:2px;transition:background 0.2s;}
+    a.btn:hover{background:#00f0ff;color:#000;}
+    .warn{color:#ff8800;font-size:0.78rem;text-align:center;}
   </style>
 </head>
 <body>
@@ -312,22 +311,20 @@ async fn cert_page_handler(
   <p>To use Audio_Sync_LINK on this device, you need to trust the self-signed certificate once.</p>
   <div class="card">
     <div class="step"><span class="num">1.</span><span class="desc">Tap the button below to <b>download cert.pem</b> to this device.</span></div>
-    <a class="btn" href="/cert.pem" download="y4z-cert.pem">⬇ Download cert.pem</a>
-    <div class="step"><span class="num">2.</span><span class="desc"><b>Android:</b> Settings → Security → Install certificate → CA certificate → pick the file.</span></div>
-    <div class="step"><span class="num">2.</span><span class="desc"><b>iOS:</b> Open the .pem file → installs a profile. Then Settings → General → VPN &amp; Device Management → trust it. Then Settings → About → Certificate Trust Settings → enable it.</span></div>
-    <div class="step"><span class="num">3.</span><span class="desc"><b>Desktop Chrome/Firefox:</b> Navigate to the URL below and click <b>Advanced → Proceed</b>. No install needed.</span></div>
+    <a class="btn" href="/cert.pem" download="y4z-cert.pem">&#x2B07; Download cert.pem</a>
+    <div class="step"><span class="num">2.</span><span class="desc"><b>Android:</b> Settings &#x2192; Security &#x2192; Install certificate &#x2192; CA certificate &#x2192; pick the file.</span></div>
+    <div class="step"><span class="num">2.</span><span class="desc"><b>iOS:</b> Open the .pem file &#x2192; installs a profile. Then Settings &#x2192; General &#x2192; VPN &amp; Device Management &#x2192; trust it. Then Settings &#x2192; About &#x2192; Certificate Trust Settings &#x2192; enable it.</span></div>
+    <div class="step"><span class="num">3.</span><span class="desc"><b>Desktop Chrome/Firefox:</b> Navigate to the URL below and click <b>Advanced &#x2192; Proceed</b>. No install needed.</span></div>
     <div class="step"><span class="num">4.</span><span class="desc">Come back here and open the app links below.</span></div>
   </div>
   <div class="card">
-    <a class="btn" href="/receiver">▶ Open Receiver</a>
-    <a class="btn" href="/sender">▶ Open Sender</a>
-    <a class="btn" href="/manager">▶ Open Manager</a>
+    <a class="btn" href="/receiver">&#x25B6; Open Receiver</a>
+    <a class="btn" href="/sender">&#x25B6; Open Sender</a>
+    <a class="btn" href="/manager">&#x25B6; Open Manager</a>
   </div>
   <div class="warn">Certificate is re-generated on each server restart. Re-trust if you restart the server.</div>
 </body>
-</html>
-"#);
-    Html(html)
+</html>"#)
 }
 
 async fn cert_download_handler(
@@ -439,7 +436,6 @@ async fn patch_device_streams(
         let old = dev.assigned_streams.clone();
         dev.assigned_streams = req.streams.clone();
         dev.last_seen = now_ms();
-        // emit route_changed for each new/removed stream
         for s in &req.streams {
             if !old.contains(s) {
                 let _ = state.event_tx.send(ControlEvent::RouteChanged {
@@ -476,7 +472,6 @@ async fn ws_handler(
 async fn handle_ws(mut socket: WebSocket, state: AppState) {
     let mut rx = state.event_tx.subscribe();
 
-    // Send current snapshot on connect
     let snapshot_streams: Vec<String> = state.streams.iter().map(|e| e.key().clone()).collect();
     let snapshot_devices: Vec<DeviceInfo> = state.devices.iter().map(|e| e.value().clone()).collect();
     let snap = serde_json::json!({
@@ -508,7 +503,6 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
             msg = socket.recv() => {
                 match msg {
                     Some(Ok(Message::Text(t))) => {
-                        // Handle heartbeat pings from devices
                         if let Ok(val) = serde_json::from_str::<serde_json::Value>(&t) {
                             if val.get("type").and_then(|v| v.as_str()) == Some("heartbeat") {
                                 if let Some(id) = val.get("device_id").and_then(|v| v.as_str()) {
@@ -546,7 +540,7 @@ async fn handle_sender_offer(
             ..Default::default()
         },
         name.clone(),
-        name.clone(), // fixed: was hardcoded "mypro"
+        name.clone(),
     ));
     state.streams.insert(name.clone(), Arc::clone(&track));
     let _ = state.event_tx.send(ControlEvent::StreamAdded { name: name.clone() });
@@ -566,7 +560,6 @@ async fn handle_sender_offer(
         return negotiate_and_answer(pc, req.sdp).await;
     }
 
-    // Browser / display audio: relay inbound WebRTC track
     let pc = build_peer_connection(&state).await;
 
     pc.on_track(Box::new({
@@ -775,7 +768,6 @@ fn start_audio_capture(
     encoder.set_inband_fec(true)?;
     encoder.set_packet_loss_perc(5)?;
 
-    // Condvar-based ring buffer: no busy-spin polling
     let ring: Arc<(Mutex<Vec<f32>>, Condvar)> = Arc::new((Mutex::new(Vec::new()), Condvar::new()));
     let ring_enc = Arc::clone(&ring);
     let track_enc = Arc::clone(&track);
@@ -787,7 +779,6 @@ fn start_audio_capture(
         let mut opus_pcm: Vec<i16> = Vec::with_capacity(FRAME_SIZE * OPUS_CH * 4);
 
         loop {
-            // Block until enough samples arrive — no busy-spin
             let chunk: Vec<f32> = {
                 let (lock, cvar) = &*ring_enc;
                 let mut buf = cvar
@@ -833,7 +824,6 @@ fn start_audio_capture(
         }
     });
 
-    // cpal callback: push raw samples into ring buffer and notify condvar
     let stream = match sup_cfg.sample_format() {
         cpal::SampleFormat::F32 => {
             let ring2 = Arc::clone(&ring);
