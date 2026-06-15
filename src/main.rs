@@ -194,7 +194,6 @@ async fn handle_sender_offer(
     let name   = req.name.clone();
     let source = req.source.as_deref().unwrap_or("system").to_string();
 
-    // Create (or replace) the shared output track for this stream
     let track = Arc::new(TrackLocalStaticSample::new(
         RTCRtpCodecCapability {
             mime_type:     MIME_TYPE_OPUS.to_owned(),
@@ -219,7 +218,6 @@ async fn handle_sender_offer(
             }
         });
 
-        // Build a real (but receive-only) PC so we can return a proper answer
         let pc = build_peer_connection(&state, false).await;
         pc.on_peer_connection_state_change(Box::new({
             let name3   = name.clone();
@@ -241,8 +239,6 @@ async fn handle_sender_offer(
     // ── Browser / display audio: inbound WebRTC from browser ──────────────────
     let pc = build_peer_connection(&state, true).await;
 
-    // When the browser sender's track arrives, relay every RTP packet into the
-    // shared TrackLocalStaticSample so receivers can subscribe to it.
     pc.on_track(Box::new({
         let relay_track = Arc::clone(&track);
         let name2 = name.clone();
@@ -252,10 +248,10 @@ async fn handle_sender_offer(
             println!("[sender/browser] [{name3}] inbound track: {} {}",
                 remote_track.kind(), remote_track.id());
             tokio::spawn(async move {
-                let mut buf = vec![0u8; 1500];
-                while let Ok((n, _)) = remote_track.read(&mut buf).await {
-                    // Re-wrap raw RTP bytes as a Sample and write to relay track
-                    let payload = Bytes::copy_from_slice(&buf[..n]);
+                // read_rtp() returns Result<(rtp::packet::Packet, Attributes)>
+                // Forward only the Opus payload bytes from each RTP packet.
+                while let Ok((rtp_pkt, _)) = remote_track.read_rtp().await {
+                    let payload = Bytes::copy_from_slice(&rtp_pkt.payload);
                     let _ = relay.write_sample(&Sample {
                         data:     payload,
                         duration: std::time::Duration::from_millis(10),
@@ -298,7 +294,6 @@ async fn handle_receiver_offer(
                 .add_track(Arc::clone(&*track) as Arc<dyn TrackLocal + Send + Sync>)
                 .await
                 .expect("failed to add track");
-            // Drain RTCP
             tokio::spawn(async move {
                 let mut buf = vec![0u8; 1500];
                 while rtp_sender.read(&mut buf).await.is_ok() {}
@@ -371,7 +366,7 @@ async fn negotiate_and_answer(
     Json(final_answer)
 }
 
-// ── Audio capture (system source) ─────────────────────────────────────────────
+// ── Audio capture (system source) ────────────────────────────────────────────
 
 fn pulse_default_source_name() -> Option<String> {
     let out = Command::new("pactl").arg("get-default-source").output().ok()?;
@@ -389,7 +384,6 @@ fn choose_input_device() -> Result<cpal::Device> {
     println!("[cpal] PulseAudio default source: {}",
         default_src.as_deref().unwrap_or("<none>"));
 
-    // 1. Try to match PulseAudio default source by name
     if let Some(ref src) = default_src {
         let src_l = src.to_ascii_lowercase();
         for d in &devices {
@@ -400,7 +394,6 @@ fn choose_input_device() -> Result<cpal::Device> {
             }
         }
     }
-    // 2. Fall back to any monitor source
     for d in &devices {
         let name = d.name().unwrap_or_default().to_ascii_lowercase();
         if name.contains("monitor") {
@@ -408,7 +401,6 @@ fn choose_input_device() -> Result<cpal::Device> {
             return Ok(d.clone());
         }
     }
-    // 3. Default input
     let d = host.default_input_device()
         .ok_or_else(|| anyhow!("no default input device"))?;
     println!("[cpal] selected (default): {}", d.name().unwrap_or_default());
@@ -437,12 +429,12 @@ fn start_audio_capture(
     let input_ch  = sup_cfg.channels() as usize;
     let stream_cfg: cpal::StreamConfig = sup_cfg.clone().into();
 
-    println!("[cpal] device : {}",  device.name().unwrap_or_default());
+    println!("[cpal] device : {}", device.name().unwrap_or_default());
     println!("[cpal] config : {:?}", sup_cfg);
 
     const OPUS_SR:    usize = 48_000;
     const OPUS_CH:    usize = 2;
-    const FRAME_SIZE: usize = 480; // 10 ms at 48 kHz
+    const FRAME_SIZE: usize = 480;
 
     let mut encoder = opus::Encoder::new(
         OPUS_SR as u32,
@@ -453,7 +445,6 @@ fn start_audio_capture(
     encoder.set_vbr(true)?;
     encoder.set_inband_fec(true)?;
 
-    // Inner callback — owns encoder, buffers, handles resampling
     fn make_callback(
         track:       Arc<TrackLocalStaticSample>,
         rt_handle:   Handle,
@@ -469,7 +460,6 @@ fn start_audio_capture(
             let frames_in = input_pcm.len() / input_ch;
             if frames_in == 0 { return; }
 
-            // Linear resample to 48 kHz stereo
             let ratio      = OPUS_SR as f64 / input_sr as f64;
             let frames_out = ((frames_in as f64) * ratio) as usize;
             if frames_out == 0 { return; }
