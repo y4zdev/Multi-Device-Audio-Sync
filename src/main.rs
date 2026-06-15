@@ -46,7 +46,7 @@ use webrtc_ice::udp_network::{EphemeralUDP, UDPNetwork};
 #[derive(Deserialize)]
 struct SenderOfferRequest {
     name:   String,
-    source: Option<String>, // "browser" | "system" (default = "system")
+    source: Option<String>,
     sdp:    RTCSessionDescription,
 }
 
@@ -66,7 +66,6 @@ struct StreamsResponse {
 #[derive(Clone)]
 struct AppState {
     api:     Arc<webrtc::api::API>,
-    /// stream_name → shared audio track
     streams: Arc<DashMap<String, Arc<TrackLocalStaticSample>>>,
 }
 
@@ -135,11 +134,11 @@ async fn main() -> Result<()> {
     };
 
     let app = Router::new()
-        .route("/",                    get(index_handler))
-        .route("/streams",             get(list_streams))
-        .route("/sender/offer",        post(handle_sender_offer))
-        .route("/receiver/offer",      post(handle_receiver_offer))
-        .route("/stream/{name}",       delete(remove_stream))
+        .route("/",               get(index_handler))
+        .route("/streams",        get(list_streams))
+        .route("/sender/offer",   post(handle_sender_offer))
+        .route("/receiver/offer", post(handle_receiver_offer))
+        .route("/stream/{name}",  delete(remove_stream))
         .with_state(state);
 
     let lan_ip = local_lan_ip();
@@ -157,8 +156,8 @@ async fn main() -> Result<()> {
 
     let bind_addr: std::net::SocketAddr = "0.0.0.0:8443".parse()?;
     println!("Listening on  https://{lan_ip}:8443");
-    println!("Sender  →  https://{lan_ip}:8443/?role=sender");
-    println!("Receiver → https://{lan_ip}:8443");
+    println!("Sender   →  https://{lan_ip}:8443/?role=sender");
+    println!("Receiver →  https://{lan_ip}:8443");
 
     axum_server::bind_rustls(bind_addr, tls_config)
         .serve(app.into_make_service())
@@ -184,7 +183,7 @@ async fn remove_stream(
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> axum::http::StatusCode {
     state.streams.remove(&name);
-    println!("Stream removed: {name}");
+    println!("[stream] removed: {name}");
     axum::http::StatusCode::NO_CONTENT
 }
 
@@ -195,7 +194,7 @@ async fn handle_sender_offer(
     let name   = req.name.clone();
     let source = req.source.as_deref().unwrap_or("system").to_string();
 
-    // Create or replace the track for this stream name
+    // Create (or replace) the shared output track for this stream
     let track = Arc::new(TrackLocalStaticSample::new(
         RTCRtpCodecCapability {
             mime_type:     MIME_TYPE_OPUS.to_owned(),
@@ -208,43 +207,77 @@ async fn handle_sender_offer(
         "mypro".to_owned(),
     ));
     state.streams.insert(name.clone(), Arc::clone(&track));
-    println!("Stream registered: {name} (source={source})");
+    println!("[stream] registered: {name} (source={source})");
 
-    // If source = system, spawn cpal capture thread
+    // ── System audio: server-side cpal capture ────────────────────────────────
     if source == "system" {
         let rt_handle = Handle::current();
+        let name2 = name.clone();
         std::thread::spawn(move || {
             if let Err(e) = start_audio_capture(track, rt_handle) {
-                eprintln!("[{name}] audio capture failed: {e:?}");
+                eprintln!("[{name2}] audio capture error: {e:?}");
             }
         });
-        // For system capture, we don't need a real PeerConnection from sender.
-        // Return a dummy answer so the browser doesn't error.
-        let dummy = RTCSessionDescription::answer("{\"type\":\"answer\",\"sdp\":\"\"}".to_string())
-            .unwrap_or_default();
-        return Json(dummy);
+
+        // Build a real (but receive-only) PC so we can return a proper answer
+        let pc = build_peer_connection(&state, false).await;
+        pc.on_peer_connection_state_change(Box::new({
+            let name3   = name.clone();
+            let streams = Arc::clone(&state.streams);
+            move |s: RTCPeerConnectionState| {
+                let name3   = name3.clone();
+                let streams = Arc::clone(&streams);
+                println!("[sender/system] [{name3}] PC state: {s}");
+                if matches!(s, RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed) {
+                    streams.remove(&name3);
+                    println!("[stream] unregistered: {name3}");
+                }
+                Box::pin(async {})
+            }
+        }));
+        return negotiate_and_answer(pc, req.sdp).await;
     }
 
-    // source = "browser": sender sends audio TO server via WebRTC inbound
+    // ── Browser / display audio: inbound WebRTC from browser ──────────────────
     let pc = build_peer_connection(&state, true).await;
 
-    // RTCP drain
-    let pc2 = Arc::clone(&pc);
-    tokio::spawn(async move {
-        // Accept inbound audio track from browser sender and pipe to shared track
-        let _ = pc2;
-    });
+    // When the browser sender's track arrives, relay every RTP packet into the
+    // shared TrackLocalStaticSample so receivers can subscribe to it.
+    pc.on_track(Box::new({
+        let relay_track = Arc::clone(&track);
+        let name2 = name.clone();
+        move |remote_track, _, _| {
+            let relay = Arc::clone(&relay_track);
+            let name3 = name2.clone();
+            println!("[sender/browser] [{name3}] inbound track: {} {}",
+                remote_track.kind(), remote_track.id());
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 1500];
+                while let Ok((n, _)) = remote_track.read(&mut buf).await {
+                    // Re-wrap raw RTP bytes as a Sample and write to relay track
+                    let payload = Bytes::copy_from_slice(&buf[..n]);
+                    let _ = relay.write_sample(&Sample {
+                        data:     payload,
+                        duration: std::time::Duration::from_millis(10),
+                        ..Default::default()
+                    }).await;
+                }
+                println!("[sender/browser] [{name3}] inbound track ended");
+            });
+            Box::pin(async {})
+        }
+    }));
 
     pc.on_peer_connection_state_change(Box::new({
-        let name = req.name.clone();
+        let name2   = name.clone();
         let streams = Arc::clone(&state.streams);
         move |s: RTCPeerConnectionState| {
-            let name = name.clone();
+            let name2   = name2.clone();
             let streams = Arc::clone(&streams);
-            println!("Sender [{name}] PC state: {s}");
-            if s == RTCPeerConnectionState::Failed || s == RTCPeerConnectionState::Closed {
-                streams.remove(&name);
-                println!("Stream unregistered: {name}");
+            println!("[sender/browser] [{name2}] PC state: {s}");
+            if matches!(s, RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed) {
+                streams.remove(&name2);
+                println!("[stream] unregistered: {name2}");
             }
             Box::pin(async {})
         }
@@ -259,25 +292,25 @@ async fn handle_receiver_offer(
 ) -> Json<RTCSessionDescription> {
     let pc = build_peer_connection(&state, false).await;
 
-    // Add all requested tracks to this one PeerConnection
     for stream_name in &req.streams {
         if let Some(track) = state.streams.get(stream_name) {
             let rtp_sender = pc
                 .add_track(Arc::clone(&*track) as Arc<dyn TrackLocal + Send + Sync>)
                 .await
                 .expect("failed to add track");
+            // Drain RTCP
             tokio::spawn(async move {
                 let mut buf = vec![0u8; 1500];
                 while rtp_sender.read(&mut buf).await.is_ok() {}
             });
-            println!("Receiver subscribed to: {stream_name}");
+            println!("[receiver] subscribed to: {stream_name}");
         } else {
-            println!("Stream not found (skipped): {stream_name}");
+            println!("[receiver] stream not found (skipped): {stream_name}");
         }
     }
 
     pc.on_peer_connection_state_change(Box::new(|s: RTCPeerConnectionState| {
-        println!("Receiver PC state: {s}");
+        println!("[receiver] PC state: {s}");
         Box::pin(async {})
     }));
 
@@ -330,7 +363,7 @@ async fn negotiate_and_answer(
     pc.set_local_description(answer).await
         .expect("set_local_description failed");
 
-    let _ = tokio::time::timeout(std::time::Duration::from_secs(4), rx).await;
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(5), rx).await;
 
     let final_answer = pc.local_description().await
         .expect("no local description");
@@ -338,7 +371,7 @@ async fn negotiate_and_answer(
     Json(final_answer)
 }
 
-// ── Audio capture helpers (system source) ────────────────────────────────────
+// ── Audio capture (system source) ─────────────────────────────────────────────
 
 fn pulse_default_source_name() -> Option<String> {
     let out = Command::new("pactl").arg("get-default-source").output().ok()?;
@@ -350,32 +383,43 @@ fn pulse_default_source_name() -> Option<String> {
 fn choose_input_device() -> Result<cpal::Device> {
     let host    = cpal::default_host();
     let devices: Vec<cpal::Device> = host.input_devices()?.collect();
-    if devices.is_empty() { return Err(anyhow!("no input devices")); }
+    if devices.is_empty() { return Err(anyhow!("no input devices found")); }
 
     let default_src = pulse_default_source_name();
-    println!("Pulse default source: {}", default_src.as_deref().unwrap_or("<none>"));
+    println!("[cpal] PulseAudio default source: {}",
+        default_src.as_deref().unwrap_or("<none>"));
 
+    // 1. Try to match PulseAudio default source by name
     if let Some(ref src) = default_src {
         let src_l = src.to_ascii_lowercase();
         for d in &devices {
             let name = d.name().unwrap_or_default().to_ascii_lowercase();
             if name.contains(&src_l) {
-                println!("Selected (pulse match): {}", d.name().unwrap_or_default());
+                println!("[cpal] selected (pulse match): {}", d.name().unwrap_or_default());
                 return Ok(d.clone());
             }
         }
     }
+    // 2. Fall back to any monitor source
     for d in &devices {
         let name = d.name().unwrap_or_default().to_ascii_lowercase();
         if name.contains("monitor") {
-            println!("Selected (monitor): {}", d.name().unwrap_or_default());
+            println!("[cpal] selected (monitor fallback): {}", d.name().unwrap_or_default());
             return Ok(d.clone());
         }
     }
-    host.default_input_device().ok_or_else(|| anyhow!("no default input device"))
+    // 3. Default input
+    let d = host.default_input_device()
+        .ok_or_else(|| anyhow!("no default input device"))?;
+    println!("[cpal] selected (default): {}", d.name().unwrap_or_default());
+    Ok(d)
 }
 
-async fn write_encoded_frame(track: Arc<TrackLocalStaticSample>, payload: Vec<u8>, duration_ms: u64) {
+async fn write_encoded_frame(
+    track: Arc<TrackLocalStaticSample>,
+    payload: Vec<u8>,
+    duration_ms: u64,
+) {
     let _ = track.write_sample(&Sample {
         data:     Bytes::from(payload),
         duration: std::time::Duration::from_millis(duration_ms),
@@ -383,25 +427,33 @@ async fn write_encoded_frame(track: Arc<TrackLocalStaticSample>, payload: Vec<u8
     }).await;
 }
 
-fn start_audio_capture(track: Arc<TrackLocalStaticSample>, rt_handle: Handle) -> Result<()> {
-    let device     = choose_input_device()?;
-    let sup_cfg    = device.default_input_config()?;
-    let input_sr   = sup_cfg.sample_rate().0 as usize;
-    let input_ch   = sup_cfg.channels() as usize;
+fn start_audio_capture(
+    track: Arc<TrackLocalStaticSample>,
+    rt_handle: Handle,
+) -> Result<()> {
+    let device  = choose_input_device()?;
+    let sup_cfg = device.default_input_config()?;
+    let input_sr  = sup_cfg.sample_rate().0 as usize;
+    let input_ch  = sup_cfg.channels() as usize;
     let stream_cfg: cpal::StreamConfig = sup_cfg.clone().into();
 
-    println!("Input device : {}",  device.name().unwrap_or_default());
-    println!("Input config : {:?}", sup_cfg);
+    println!("[cpal] device : {}",  device.name().unwrap_or_default());
+    println!("[cpal] config : {:?}", sup_cfg);
 
     const OPUS_SR:    usize = 48_000;
     const OPUS_CH:    usize = 2;
-    const FRAME_SIZE: usize = 480;
+    const FRAME_SIZE: usize = 480; // 10 ms at 48 kHz
 
-    let mut encoder = opus::Encoder::new(OPUS_SR as u32, opus::Channels::Stereo, opus::Application::Audio)?;
+    let mut encoder = opus::Encoder::new(
+        OPUS_SR as u32,
+        opus::Channels::Stereo,
+        opus::Application::Audio,
+    )?;
     encoder.set_bitrate(opus::Bitrate::Bits(128_000))?;
     encoder.set_vbr(true)?;
     encoder.set_inband_fec(true)?;
 
+    // Inner callback — owns encoder, buffers, handles resampling
     fn make_callback(
         track:       Arc<TrackLocalStaticSample>,
         rt_handle:   Handle,
@@ -411,54 +463,88 @@ fn start_audio_capture(track: Arc<TrackLocalStaticSample>, rt_handle: Handle) ->
     ) -> impl FnMut(Vec<f32>) + Send + 'static {
         let mut input_pcm: Vec<f32> = Vec::with_capacity(8192);
         let mut opus_pcm:  Vec<i16> = Vec::with_capacity(FRAME_SIZE * OPUS_CH * 4);
+
         move |samples: Vec<f32>| {
             input_pcm.extend_from_slice(&samples);
-            let frames_in  = input_pcm.len() / input_ch;
+            let frames_in = input_pcm.len() / input_ch;
             if frames_in == 0 { return; }
+
+            // Linear resample to 48 kHz stereo
             let ratio      = OPUS_SR as f64 / input_sr as f64;
             let frames_out = ((frames_in as f64) * ratio) as usize;
             if frames_out == 0 { return; }
+
             let mut resampled = Vec::with_capacity(frames_out * OPUS_CH);
             for i in 0..frames_out {
                 let src = ((i as f64 / ratio) as usize).min(frames_in - 1);
-                let l   = input_pcm[src * input_ch];
-                let r   = if input_ch >= 2 { input_pcm[src * input_ch + 1] } else { l };
+                let l = input_pcm[src * input_ch];
+                let r = if input_ch >= 2 { input_pcm[src * input_ch + 1] } else { l };
                 resampled.push((l * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
                 resampled.push((r * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
             }
             input_pcm.clear();
+
             opus_pcm.extend_from_slice(&resampled);
             while opus_pcm.len() >= FRAME_SIZE * OPUS_CH {
                 let frame: Vec<i16> = opus_pcm.drain(..FRAME_SIZE * OPUS_CH).collect();
                 let mut out = vec![0u8; 4000];
                 if let Ok(n) = encoder.encode(&frame, &mut out) {
                     out.truncate(n);
-                    rt_handle.spawn(write_encoded_frame(Arc::clone(&track), out, 10));
+                    rt_handle.spawn(write_encoded_frame(
+                        Arc::clone(&track), out, 10,
+                    ));
                 }
             }
         }
     }
 
-    let cb = make_callback(Arc::clone(&track), rt_handle.clone(), encoder, input_sr, input_ch);
+    let cb = make_callback(
+        Arc::clone(&track), rt_handle.clone(), encoder, input_sr, input_ch,
+    );
     let cb = Arc::new(std::sync::Mutex::new(cb));
 
     let stream = match sup_cfg.sample_format() {
         cpal::SampleFormat::F32 => {
             let cb = Arc::clone(&cb);
-            device.build_input_stream(&stream_cfg, move |data: &[f32], _| { cb.lock().unwrap()(data.to_vec()); }, |e| eprintln!("stream error: {e}"), None)?
+            device.build_input_stream(
+                &stream_cfg,
+                move |data: &[f32], _| { cb.lock().unwrap()(data.to_vec()); },
+                |e| eprintln!("[cpal] stream error: {e}"),
+                None,
+            )?
         }
         cpal::SampleFormat::I16 => {
             let cb = Arc::clone(&cb);
-            device.build_input_stream(&stream_cfg, move |data: &[i16], _| { let f: Vec<f32> = data.iter().map(|&s| s as f32 / i16::MAX as f32).collect(); cb.lock().unwrap()(f); }, |e| eprintln!("stream error: {e}"), None)?
+            device.build_input_stream(
+                &stream_cfg,
+                move |data: &[i16], _| {
+                    let f: Vec<f32> = data.iter()
+                        .map(|&s| s as f32 / i16::MAX as f32)
+                        .collect();
+                    cb.lock().unwrap()(f);
+                },
+                |e| eprintln!("[cpal] stream error: {e}"),
+                None,
+            )?
         }
         cpal::SampleFormat::U16 => {
             let cb = Arc::clone(&cb);
-            device.build_input_stream(&stream_cfg, move |data: &[u16], _| { let f: Vec<f32> = data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0).collect(); cb.lock().unwrap()(f); }, |e| eprintln!("stream error: {e}"), None)?
+            device.build_input_stream(
+                &stream_cfg,
+                move |data: &[u16], _| {
+                    let f: Vec<f32> = data.iter()
+                        .map(|&s| (s as f32 - 32768.0) / 32768.0)
+                        .collect();
+                    cb.lock().unwrap()(f);
+                },
+                |e| eprintln!("[cpal] stream error: {e}"),
+                None,
+            )?
         }
         other => return Err(anyhow!("unsupported sample format: {other:?}")),
     };
 
     stream.play()?;
-    println!("Audio capture started");
+    println!("[cpal] audio capture started");
     loop { std::thread::sleep(std::time::Duration::from_secs(1)); }
 }

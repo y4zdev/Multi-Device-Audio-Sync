@@ -42,7 +42,6 @@
                        linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
       background-size:30px 30px;
     }
-    /* ── Layout ── */
     .hud{display:flex;flex-direction:column;height:100dvh;
          padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right))
                  max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:8px;}
@@ -67,7 +66,6 @@
     .sys-dot.err{background:var(--neon-magenta);box-shadow:0 0 8px var(--neon-magenta);}
     @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
     .core{display:flex;flex:1;gap:8px;min-height:0;}
-    /* ── Visualizer ── */
     .viz-wrap{
       flex:1;position:relative;
       background:radial-gradient(circle at center,rgba(0,240,255,0.04) 0%,transparent 60%),#000;
@@ -78,7 +76,6 @@
       position:absolute;bottom:10px;left:14px;
       font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);opacity:0.6;
     }
-    /* ── Side panel ── */
     .side{width:330px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
     .panel{
       background:var(--bg-panel);
@@ -90,7 +87,6 @@
       text-transform:uppercase;border-bottom:1px dashed rgba(0,240,255,0.25);
       padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;
     }
-    /* ── Buttons ── */
     .btn-row{display:flex;flex-wrap:wrap;gap:6px;}
     button{
       flex:1;min-width:70px;background:transparent;color:var(--text-main);
@@ -109,7 +105,6 @@
     button.warn-btn:hover{background:var(--neon-orange);color:#000;text-shadow:none;}
     button.active-btn{background:rgba(0,240,255,0.18);border-color:var(--neon-cyan);color:var(--neon-cyan);}
     button:disabled{opacity:0.35;cursor:not-allowed;}
-    /* ── Stream cards ── */
     .stream-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;}
     .stream-card{
       border:1px solid rgba(0,240,255,0.2);padding:8px 10px;
@@ -127,7 +122,6 @@
     .vol-row{display:flex;align-items:center;gap:6px;margin-top:4px;}
     .vol-row input[type=range]{flex:1;accent-color:var(--neon-cyan);height:4px;cursor:pointer;}
     .vol-label{font-family:var(--font-mono);font-size:0.65rem;color:var(--text-muted);min-width:28px;text-align:right;}
-    /* ── Sender stream cards ── */
     .sender-card{
       border:1px solid rgba(255,136,0,0.3);padding:8px 10px;
       display:flex;flex-direction:column;gap:4px;
@@ -136,7 +130,6 @@
     .sender-card-row{display:flex;align-items:center;gap:8px;}
     .vu-bar{flex:1;height:6px;background:rgba(255,136,0,0.1);overflow:hidden;}
     .vu-fill{height:100%;width:0%;background:var(--neon-orange);box-shadow:0 0 8px var(--neon-orange);transition:width 0.08s linear;}
-    /* ── Inputs ── */
     .field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
     .field label{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;}
     .field input,.field select{
@@ -147,11 +140,9 @@
     }
     .field input:focus,.field select:focus{border-color:var(--neon-cyan);}
     .field select option{background:#0a0c10;}
-    /* ── Data grid ── */
     .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
     .dk{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;}
     .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    /* ── Terminal ── */
     .terminal{
       font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-green);
       background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.15);
@@ -161,10 +152,8 @@
     .lt{color:var(--text-muted);margin-right:4px;}
     .le{color:var(--neon-magenta);}
     .lw{color:var(--neon-yellow);}
-    /* ── Energy ── */
     .energy-track{height:4px;background:rgba(0,240,255,0.08);margin-top:8px;}
     .energy-fill{height:100%;width:0%;background:var(--neon-cyan);box-shadow:0 0 8px var(--neon-cyan);transition:width 0.1s linear;}
-    /* ── Reconnect overlay ── */
     .reconnect-overlay{
       position:fixed;inset:0;background:rgba(5,6,8,0.88);z-index:100;
       display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;
@@ -178,7 +167,6 @@
       animation:spin 0.8s linear infinite;
     }
     @keyframes spin{to{transform:rotate(360deg)}}
-    /* ── Utils ── */
     .hidden{display:none!important;}
     audio{display:none;}
     @media(max-width:800px){
@@ -191,7 +179,6 @@
 <body>
 <div class="grid-bg"></div>
 
-<!-- Auto-reconnect overlay -->
 <div class="reconnect-overlay" id="reconnectOverlay">
   <div class="spin"></div>
   <div class="reconnect-msg">SERVER_OFFLINE</div>
@@ -216,30 +203,22 @@
       <canvas id="viz"></canvas>
       <div class="viz-label">› <span id="vizLabel">AWAITING_SIGNAL</span></div>
     </section>
-
-    <aside class="side" id="sidePanel">
-      <!-- injected by JS based on role -->
-    </aside>
+    <aside class="side" id="sidePanel"></aside>
   </main>
 </div>
 
 <script>
-// ─────────────────────────────────────────────────────────────────────────────
-// ROLE DETECTION
-// ─────────────────────────────────────────────────────────────────────────────
+// ── ROLE ──────────────────────────────────────────────────────────────────────
 const ROLE = new URLSearchParams(location.search).get('role') === 'sender' ? 'sender' : 'receiver';
 document.getElementById('roleBadge').textContent = ROLE.toUpperCase();
-document.getElementById('roleBadge').className = 'role-badge ' + ROLE;
+document.getElementById('roleBadge').className   = 'role-badge ' + ROLE;
 document.title = ROLE === 'sender' ? 'Y4Z // SENDER' : 'Y4Z // RECEIVER';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CANVAS VISUALIZER
-// ─────────────────────────────────────────────────────────────────────────────
+// ── CANVAS VISUALIZER ─────────────────────────────────────────────────────────
 const canvas = document.getElementById('viz');
 const ctx    = canvas.getContext('2d');
-let analyserNodes = []; // one per connected stream
+let analyserNodes = [];
 let vizMode = 'spectrum';
-let animId  = null;
 
 function resizeCanvas() {
   const r = canvas.parentNode.getBoundingClientRect();
@@ -253,23 +232,21 @@ window.addEventListener('resize', resizeCanvas);
 function vizLoop() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.clearRect(0,0,w,h);
-  // grid
   ctx.strokeStyle='rgba(0,240,255,0.05)';ctx.lineWidth=1;ctx.beginPath();
   for(let x=0;x<w;x+=40){ctx.moveTo(x,0);ctx.lineTo(x,h);}
   for(let y=0;y<h;y+=40){ctx.moveTo(0,y);ctx.lineTo(w,y);}
   ctx.stroke();
-
-  if(analyserNodes.length === 0){
+  if(analyserNodes.length===0){
     ctx.fillStyle='rgba(0,240,255,0.15)';
     ctx.fillRect(0,h/2-1,w,2);
   } else {
     const colors=['#00f0ff','#ff003c','#fcee0a','#00ff41','#ff8800','#bf00ff'];
     analyserNodes.forEach((an,idx)=>{
-      const col = colors[idx % colors.length];
+      const col=colors[idx%colors.length];
       if(vizMode==='spectrum'){
         const data=new Uint8Array(an.frequencyBinCount);
         an.getByteFrequencyData(data);
-        const bars=60, step=Math.floor(data.length/bars), bw=w/bars;
+        const bars=60,step=Math.floor(data.length/bars),bw=w/bars;
         const cy=h/2;
         ctx.fillStyle='rgba(0,240,255,0.3)';ctx.fillRect(0,cy-1,w,2);
         for(let i=0;i<bars;i++){
@@ -295,12 +272,10 @@ function vizLoop() {
       }
     });
   }
-  animId=requestAnimationFrame(vizLoop);
+  requestAnimationFrame(vizLoop);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LOGGER
-// ─────────────────────────────────────────────────────────────────────────────
+// ── LOGGER ────────────────────────────────────────────────────────────────────
 let logEl = null;
 function log(msg, type='') {
   if(!logEl) return;
@@ -312,84 +287,55 @@ function log(msg, type='') {
   logEl.scrollTop=logEl.scrollHeight;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SYS STATE
-// ─────────────────────────────────────────────────────────────────────────────
+// ── SYS STATE ─────────────────────────────────────────────────────────────────
 const sysDot  = document.getElementById('sysDot');
 const sysText = document.getElementById('sysText');
 function setSys(text, level='idle') {
-  sysText.textContent = text;
-  sysDot.className = 'sys-dot ' + (level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
+  sysText.textContent=text;
+  sysDot.className='sys-dot '+(level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SERVER HEALTH + AUTO-RECONNECT
-// ─────────────────────────────────────────────────────────────────────────────
-const overlay      = document.getElementById('reconnectOverlay');
-const countdownEl  = document.getElementById('reconnectCountdown');
+// ── SERVER HEALTH ─────────────────────────────────────────────────────────────
+const overlay     = document.getElementById('reconnectOverlay');
+const countdownEl = document.getElementById('reconnectCountdown');
 let serverWasDown  = false;
 let reconnectTimer = null;
-let autoReconnectFn = null; // set by role init
+let autoReconnectFn = null;
 
 async function checkServer() {
   try {
-    await fetch('/streams', { signal: AbortSignal.timeout(3000) });
-    if(serverWasDown) {
-      serverWasDown = false;
+    await fetch('/streams',{signal:AbortSignal.timeout(3000)});
+    if(serverWasDown){
+      serverWasDown=false;
       overlay.classList.remove('show');
-      log('Server back online. Reconnecting...', 'warn');
+      log('Server back online. Reconnecting...','warn');
       if(autoReconnectFn) autoReconnectFn();
     }
   } catch {
-    if(!serverWasDown) {
-      serverWasDown = true;
+    if(!serverWasDown){
+      serverWasDown=true;
       overlay.classList.add('show');
-      log('Server unreachable. Auto-reconnect active.', 'err');
+      log('Server unreachable. Auto-reconnect active.','err');
     }
   }
 }
+function startHealthLoop(){ setInterval(checkServer,5000); }
+function scheduleReconnect(fn,delayMs=2000){ clearTimeout(reconnectTimer); reconnectTimer=setTimeout(fn,delayMs); }
 
-function startHealthLoop() {
-  setInterval(checkServer, 5000);
+// ── WEBRTC HELPERS ────────────────────────────────────────────────────────────
+function makePC(){
+  return new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
 }
-
-function scheduleReconnect(fn, delayMs=2000) {
-  clearTimeout(reconnectTimer);
-  reconnectTimer = setTimeout(fn, delayMs);
-}
-
-function countdownOverlay(seconds, fn) {
-  let s = seconds;
-  countdownEl.textContent = s;
-  const iv = setInterval(()=>{
-    s--; countdownEl.textContent = s;
-    if(s<=0){ clearInterval(iv); fn(); }
-  }, 1000);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WEBRTC HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-function makePC() {
-  return new RTCPeerConnection({
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-  });
-}
-
-async function sendOffer(endpoint, body) {
-  const res = await fetch(endpoint, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(8000)
+async function sendOffer(endpoint,body){
+  const res=await fetch(endpoint,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body),signal:AbortSignal.timeout(10000)
   });
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RECEIVER ROLE
-// ─────────────────────────────────────────────────────────────────────────────
+// ── RECEIVER ROLE ─────────────────────────────────────────────────────────────
 function initReceiver() {
   const side = document.getElementById('sidePanel');
   side.innerHTML = `
@@ -399,6 +345,7 @@ function initReceiver() {
       <div class="btn-row" style="margin-top:10px;">
         <button class="primary" id="connectBtn">Connect Selected</button>
         <button id="refreshBtn">Refresh</button>
+        <button class="warn-btn" id="forcePlayBtn" style="display:none;">Force Play</button>
       </div>
     </div>
     <div class="panel">
@@ -420,39 +367,48 @@ function initReceiver() {
   logEl = document.getElementById('logBox');
 
   let pc = null;
-  let audioCtx  = null;
-  let activeStreams = {}; // name → { audio, sourceNode, analyser }
+  let audioCtx = null;
+  let activeStreams = {};
+  let pendingAudioEls = [];
   let selectedStreams = new Set();
   let backoff = 2000;
-  let isConnected = false;
 
-  async function fetchStreams() {
-    try {
-      const r = await fetch('/streams', { signal: AbortSignal.timeout(3000) });
-      const data = await r.json();
-      return data.streams || [];
-    } catch { return []; }
+  // Force Play: resume AudioContext and replay all audio elements
+  document.getElementById('forcePlayBtn').addEventListener('click', () => {
+    if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+    pendingAudioEls.forEach(a => a.play().catch(()=>{}));
+    pendingAudioEls = [];
+    document.getElementById('forcePlayBtn').style.display='none';
+    log('Force play triggered.');
+  });
+
+  async function fetchStreams(){
+    try{
+      const r=await fetch('/streams',{signal:AbortSignal.timeout(3000)});
+      const d=await r.json();
+      return d.streams||[];
+    } catch{ return []; }
   }
 
-  async function renderStreamList() {
-    const streams = await fetchStreams();
-    const listEl = document.getElementById('streamList');
-    document.getElementById('streamCount').textContent = streams.length + ' found';
-    if(streams.length === 0) {
-      listEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No streams available.</div>';
+  async function renderStreamList(){
+    const streams=await fetchStreams();
+    const listEl=document.getElementById('streamList');
+    document.getElementById('streamCount').textContent=streams.length+' found';
+    if(streams.length===0){
+      listEl.innerHTML='<div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No streams available.</div>';
       return;
     }
-    listEl.innerHTML = '';
-    streams.forEach(name => {
-      const card = document.createElement('div');
-      card.className = 'stream-card';
-      const isActive = !!activeStreams[name];
-      card.innerHTML = `
+    listEl.innerHTML='';
+    streams.forEach(name=>{
+      const card=document.createElement('div');
+      card.className='stream-card';
+      const isActive=!!activeStreams[name];
+      card.innerHTML=`
         <input type="checkbox" id="chk_${name}" ${selectedStreams.has(name)||isActive?'checked':''}>
         <span class="stream-name">${name}</span>
-        <span class="stream-state ${isActive?'live':''}">${ isActive?'● LIVE':'○ IDLE'}</span>
+        <span class="stream-state ${isActive?'live':''}">${isActive?'● LIVE':'○ IDLE'}</span>
       `;
-      card.querySelector('input').addEventListener('change', e => {
+      card.querySelector('input').addEventListener('change',e=>{
         if(e.target.checked) selectedStreams.add(name);
         else selectedStreams.delete(name);
       });
@@ -461,141 +417,134 @@ function initReceiver() {
     });
   }
 
-  async function connect() {
-    if(selectedStreams.size === 0) {
-      // Auto-select all if none chosen
-      const streams = await fetchStreams();
-      streams.forEach(s => selectedStreams.add(s));
+  async function connect(){
+    if(selectedStreams.size===0){
+      const streams=await fetchStreams();
+      streams.forEach(s=>selectedStreams.add(s));
     }
-    if(selectedStreams.size === 0) { log('No streams to connect to.','warn'); return; }
+    if(selectedStreams.size===0){ log('No streams to connect to.','warn'); return; }
 
     setSys('CONNECTING','warn');
-    document.getElementById('netState').textContent = 'INIT';
+    document.getElementById('netState').textContent='INIT';
 
-    try {
-      if(pc) { pc.close(); pc = null; }
+    try{
+      if(pc){ pc.close(); pc=null; }
+      // Clear previous analyser nodes and active stream cards
+      analyserNodes=[];
+      document.getElementById('activeStreamsList').innerHTML='';
+      activeStreams={};
+      document.getElementById('trackCount').textContent='0';
 
-      pc = makePC();
+      pc=makePC();
 
-      pc.oniceconnectionstatechange = () => {
-        document.getElementById('iceState').textContent = pc.iceConnectionState.toUpperCase();
+      pc.oniceconnectionstatechange=()=>{
+        document.getElementById('iceState').textContent=pc.iceConnectionState.toUpperCase();
       };
 
-      pc.onconnectionstatechange = () => {
-        const s = pc.connectionState;
-        document.getElementById('netState').textContent = s.toUpperCase();
-        if(s === 'connected') {
-          setSys('ONLINE','live'); isConnected=true; backoff=2000;
-          log('Connected to ' + [...selectedStreams].join(', '));
-        }
-        if(s === 'failed' || s === 'disconnected') {
-          setSys('LINK_FAIL','err'); isConnected=false;
-          log('Link lost. Reconnecting in ' + (backoff/1000) + 's...', 'err');
+      pc.onconnectionstatechange=()=>{
+        const s=pc.connectionState;
+        document.getElementById('netState').textContent=s.toUpperCase();
+        if(s==='connected'){ setSys('ONLINE','live'); backoff=2000; log('Connected to '+[...selectedStreams].join(', ')); }
+        if(s==='failed'||s==='disconnected'){
+          setSys('LINK_FAIL','err');
+          log('Link lost. Reconnecting in '+(backoff/1000)+'s...','err');
           scheduleReconnect(connect, backoff);
-          backoff = Math.min(backoff * 2, 30000);
+          backoff=Math.min(backoff*2,30000);
         }
       };
 
-      let trackIdx = 0;
-      const activeEl = document.getElementById('activeStreamsList');
+      let trackIdx=0;
+      const activeEl=document.getElementById('activeStreamsList');
 
-      pc.ontrack = (event) => {
-        const stream = event.streams[0];
-        const trackNames = [...selectedStreams];
-        const name = trackNames[trackIdx] || 'stream_' + trackIdx;
+      pc.ontrack=(event)=>{
+        const stream=event.streams[0];
+        const trackNames=[...selectedStreams];
+        const name=trackNames[trackIdx]||'stream_'+trackIdx;
         trackIdx++;
+        document.getElementById('trackCount').textContent=trackIdx;
 
-        document.getElementById('trackCount').textContent = trackIdx;
+        if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+        if(audioCtx.state==='suspended') audioCtx.resume();
 
-        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if(audioCtx.state === 'suspended') audioCtx.resume();
-
-        const audio = document.createElement('audio');
-        audio.srcObject = stream;
-        audio.playsinline = true;
+        const audio=document.createElement('audio');
+        audio.srcObject=stream;
+        audio.playsInline=true;
         document.body.appendChild(audio);
 
-        const srcNode  = audioCtx.createMediaStreamSource(stream);
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.8;
+        const srcNode=audioCtx.createMediaStreamSource(stream);
+        const analyser=audioCtx.createAnalyser();
+        analyser.fftSize=256;
+        analyser.smoothingTimeConstant=0.8;
         srcNode.connect(analyser);
         analyserNodes.push(analyser);
 
-        // per-stream gain node for volume
-        const gain = audioCtx.createGain();
+        const gain=audioCtx.createGain();
         srcNode.connect(gain);
         gain.connect(audioCtx.destination);
 
-        activeStreams[name] = { audio, srcNode, analyser, gain };
+        activeStreams[name]={audio,srcNode,analyser,gain};
 
-        audio.play().then(() => {
-          document.getElementById('playbackState').textContent = 'ACTIVE';
-          document.getElementById('vizLabel').textContent = 'RX // ' + [...Object.keys(activeStreams)].join(' + ');
-          log('Track live: ' + name);
-        }).catch(() => {
+        audio.play().then(()=>{
+          document.getElementById('playbackState').textContent='ACTIVE';
+          document.getElementById('vizLabel').textContent='RX // '+Object.keys(activeStreams).join(' + ');
+          log('Track live: '+name);
+        }).catch(()=>{
+          pendingAudioEls.push(audio);
+          document.getElementById('forcePlayBtn').style.display='';
           log('Autoplay blocked — tap Force Play','warn');
         });
 
-        // Render stream card in active list
-        const card = document.createElement('div');
-        card.id = 'active_' + name;
-        card.className = 'stream-card';
-        card.innerHTML = `
-          <span class="stream-name">${name}</span>
-          <span class="stream-state live">● LIVE</span>
-        `;
-        const volRow = document.createElement('div');
-        volRow.className = 'vol-row';
-        volRow.innerHTML = `<input type="range" min="0" max="1" step="0.01" value="1"><span class="vol-label">100%</span>`;
-        volRow.querySelector('input').addEventListener('input', e => {
-          gain.gain.value = parseFloat(e.target.value);
-          volRow.querySelector('.vol-label').textContent = Math.round(e.target.value*100)+'%';
-        });
-        const wrapper = document.createElement('div');
+        // Per-stream card with volume
+        const wrapper=document.createElement('div');
         wrapper.style.cssText='display:flex;flex-direction:column;gap:4px;width:100%;';
+        const card=document.createElement('div');
+        card.id='active_'+name;
+        card.className='stream-card';
+        card.innerHTML=`<span class="stream-name">${name}</span><span class="stream-state live">● LIVE</span>`;
+        const volRow=document.createElement('div');
+        volRow.className='vol-row';
+        volRow.innerHTML=`<input type="range" min="0" max="1" step="0.01" value="1"><span class="vol-label">100%</span>`;
+        volRow.querySelector('input').addEventListener('input',e=>{
+          gain.gain.value=parseFloat(e.target.value);
+          volRow.querySelector('.vol-label').textContent=Math.round(e.target.value*100)+'%';
+        });
         wrapper.appendChild(card);
         wrapper.appendChild(volRow);
         activeEl.appendChild(wrapper);
       };
 
-      [...selectedStreams].forEach(() => pc.addTransceiver('audio', { direction: 'recvonly' }));
+      [...selectedStreams].forEach(()=>pc.addTransceiver('audio',{direction:'recvonly'}));
 
-      const offer  = await pc.createOffer();
+      const offer=await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      log('Sending offer for: ' + [...selectedStreams].join(', '));
-      const answer = await sendOffer('/receiver/offer', {
-        streams: [...selectedStreams],
-        sdp: pc.localDescription
+      log('Sending offer for: '+[...selectedStreams].join(', '));
+      const answer=await sendOffer('/receiver/offer',{
+        streams:[...selectedStreams],
+        sdp:pc.localDescription
       });
       await pc.setRemoteDescription(answer);
       log('Remote SDP accepted.');
 
-    } catch(err) {
+    } catch(err){
       setSys('FAIL','err');
-      log('Connection failed: ' + err.message, 'err');
-      scheduleReconnect(connect, backoff);
-      backoff = Math.min(backoff * 2, 30000);
+      log('Connection failed: '+err.message,'err');
+      scheduleReconnect(connect,backoff);
+      backoff=Math.min(backoff*2,30000);
     }
   }
 
-  // Auto-reconnect hook
-  autoReconnectFn = () => { backoff=2000; connect(); };
+  autoReconnectFn=()=>{ backoff=2000; connect(); };
 
-  document.getElementById('connectBtn').addEventListener('click', ()=>{ backoff=2000; connect(); });
-  document.getElementById('refreshBtn').addEventListener('click', renderStreamList);
+  document.getElementById('connectBtn').addEventListener('click',()=>{ backoff=2000; connect(); });
+  document.getElementById('refreshBtn').addEventListener('click',renderStreamList);
 
-  // Auto-refresh stream list every 5s
   renderStreamList();
-  setInterval(renderStreamList, 5000);
-
+  setInterval(renderStreamList,5000);
   log('RECEIVER INIT. Awaiting command.');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SENDER ROLE
-// ─────────────────────────────────────────────────────────────────────────────
+// ── SENDER ROLE ───────────────────────────────────────────────────────────────
 function initSender() {
   const side = document.getElementById('sidePanel');
   side.innerHTML = `
@@ -609,7 +558,7 @@ function initSender() {
         <label>Source</label>
         <select id="sourceType">
           <option value="system">System Audio (server-side cpal)</option>
-          <option value="browser">Browser Capture (getUserMedia)</option>
+          <option value="browser">Browser Mic (getUserMedia)</option>
           <option value="display">Display Audio (getDisplayMedia)</option>
         </select>
       </div>
@@ -620,7 +569,7 @@ function initSender() {
     <div class="panel">
       <div class="panel-hdr"><span>[02] Active Streams</span><span id="senderStreamCount">0</span></div>
       <div id="senderStreamList" class="stream-list">
-        <div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No active streams.</div>
+        <div class="no-streams" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No active streams.</div>
       </div>
     </div>
     <div class="panel">
@@ -634,24 +583,23 @@ function initSender() {
   `;
   logEl = document.getElementById('logBox');
 
-  const activeConnections = {}; // name → { pc, stream }
+  const activeConnections = {};
   let backoff = 2000;
 
-  function updateSenderCount() {
-    const n = Object.keys(activeConnections).length;
-    document.getElementById('senderStreamCount').textContent = n;
-    document.getElementById('senderNetState').textContent = n + ' ACTIVE';
+  function updateSenderCount(){
+    const n=Object.keys(activeConnections).length;
+    document.getElementById('senderStreamCount').textContent=n;
+    document.getElementById('senderNetState').textContent=n+' ACTIVE';
   }
 
-  function renderSenderCard(name) {
-    const list = document.getElementById('senderStreamList');
-    const existing = list.querySelector('.no-streams');
+  function renderSenderCard(name){
+    const list=document.getElementById('senderStreamList');
+    const existing=list.querySelector('.no-streams');
     if(existing) existing.remove();
-
-    const card = document.createElement('div');
-    card.id   = 'scard_' + name;
-    card.className = 'sender-card';
-    card.innerHTML = `
+    const card=document.createElement('div');
+    card.id='scard_'+name;
+    card.className='sender-card';
+    card.innerHTML=`
       <div class="sender-card-row">
         <span style="font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-orange);flex:1;">● ${name}</span>
         <button class="danger" style="flex:0;min-width:60px;padding:3px 6px;font-size:0.7rem;" onclick="stopStream('${name}')">Stop</button>
@@ -661,130 +609,126 @@ function initSender() {
     list.appendChild(card);
   }
 
-  window.stopStream = function(name) {
-    const conn = activeConnections[name];
-    if(conn) {
+  window.stopStream=function(name){
+    const conn=activeConnections[name];
+    if(conn){
       if(conn.pc) conn.pc.close();
       if(conn.stream) conn.stream.getTracks().forEach(t=>t.stop());
+      if(conn.analyserNode) analyserNodes=analyserNodes.filter(a=>a!==conn.analyserNode);
       delete activeConnections[name];
     }
-    fetch('/stream/' + encodeURIComponent(name), { method: 'DELETE' }).catch(()=>{});
-    const card = document.getElementById('scard_' + name);
+    fetch('/stream/'+encodeURIComponent(name),{method:'DELETE'}).catch(()=>{});
+    const card=document.getElementById('scard_'+name);
     if(card) card.remove();
     updateSenderCount();
-    log('Stream stopped: ' + name, 'warn');
-    analyserNodes = analyserNodes.filter((_,i)=>i!==0); // rough cleanup
+    log('Stream stopped: '+name,'warn');
   };
 
-  async function startStream() {
-    const name   = document.getElementById('streamName').value.trim();
-    const source = document.getElementById('sourceType').value;
-
-    if(!name) { log('Enter a stream name first.','warn'); return; }
-    if(activeConnections[name]) { log('Stream "'+name+'" already running.','warn'); return; }
+  async function startStream(){
+    const name  =document.getElementById('streamName').value.trim();
+    const source=document.getElementById('sourceType').value;
+    if(!name){ log('Enter a stream name first.','warn'); return; }
+    if(activeConnections[name]){ log('Stream "'+name+'" already running.','warn'); return; }
 
     setSys('BROADCASTING','live');
-    log('Starting stream: ' + name + ' (source=' + source + ')');
+    log('Starting stream: '+name+' (source='+source+')');
 
-    if(source === 'system') {
-      // Server-side capture — just register with server, no browser PC needed
-      try {
-        const dummyPc = makePC();
-        dummyPc.addTransceiver('audio', { direction: 'sendrecv' });
-        const offer = await dummyPc.createOffer();
+    if(source==='system'){
+      try{
+        const dummyPc=makePC();
+        dummyPc.addTransceiver('audio',{direction:'sendrecv'});
+        const offer=await dummyPc.createOffer();
         await dummyPc.setLocalDescription(offer);
-        await sendOffer('/sender/offer', { name, source: 'system', sdp: dummyPc.localDescription });
-        activeConnections[name] = { pc: dummyPc, stream: null };
+        await sendOffer('/sender/offer',{name,source:'system',sdp:dummyPc.localDescription});
+        activeConnections[name]={pc:dummyPc,stream:null,analyserNode:null};
         renderSenderCard(name);
         updateSenderCount();
-        log('System capture stream registered: ' + name);
-      } catch(err) {
-        log('Failed to register system stream: ' + err.message, 'err');
+        log('System capture stream registered: '+name);
+      } catch(err){
+        log('Failed to register system stream: '+err.message,'err');
+        setSys('IDLE','idle');
       }
       return;
     }
 
-    // Browser or display capture
     let stream;
-    try {
-      if(source === 'browser') {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    try{
+      if(source==='browser'){
+        stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
       } else {
-        stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
-        stream.getVideoTracks().forEach(t => t.stop()); // drop video
+        stream=await navigator.mediaDevices.getDisplayMedia({audio:true,video:true});
+        stream.getVideoTracks().forEach(t=>t.stop());
       }
-    } catch(err) {
-      log('Media capture failed: ' + err.message, 'err');
+    } catch(err){
+      log('Media capture failed: '+err.message,'err');
+      setSys('IDLE','idle');
       return;
     }
 
-    try {
-      const pc2 = makePC();
-      stream.getAudioTracks().forEach(t => pc2.addTrack(t, stream));
+    try{
+      const pc2=makePC();
+      stream.getAudioTracks().forEach(t=>pc2.addTrack(t,stream));
 
-      // VU meter for browser stream
-      const audioCtxS = new (window.AudioContext || window.webkitAudioContext)();
-      const src2 = audioCtxS.createMediaStreamSource(stream);
-      const an2  = audioCtxS.createAnalyser();
-      an2.fftSize = 256;
+      const audioCtxS=new(window.AudioContext||window.webkitAudioContext)();
+      const src2=audioCtxS.createMediaStreamSource(stream);
+      const an2=audioCtxS.createAnalyser();
+      an2.fftSize=256;
       src2.connect(an2);
       analyserNodes.push(an2);
-      const vuEl = null; // filled after card renders
 
-      pc2.onconnectionstatechange = () => {
-        if(pc2.connectionState==='failed'||pc2.connectionState==='disconnected') {
-          log('Sender PC lost for ' + name + '. Reconnecting...','warn');
-          scheduleReconnect(()=>{ delete activeConnections[name]; startStream(); }, backoff);
-          backoff = Math.min(backoff*2, 30000);
+      pc2.onconnectionstatechange=()=>{
+        if(pc2.connectionState==='failed'||pc2.connectionState==='disconnected'){
+          log('Sender PC lost for '+name+'. Reconnecting...','warn');
+          delete activeConnections[name];
+          analyserNodes=analyserNodes.filter(a=>a!==an2);
+          scheduleReconnect(()=>startStream(),backoff);
+          backoff=Math.min(backoff*2,30000);
         }
-        if(pc2.connectionState==='connected') { backoff=2000; }
+        if(pc2.connectionState==='connected'){ backoff=2000; }
       };
 
-      const offer = await pc2.createOffer();
+      const offer=await pc2.createOffer();
       await pc2.setLocalDescription(offer);
-      const answer = await sendOffer('/sender/offer', { name, source, sdp: pc2.localDescription });
+      const answer=await sendOffer('/sender/offer',{name,source,sdp:pc2.localDescription});
       await pc2.setRemoteDescription(answer);
 
-      activeConnections[name] = { pc: pc2, stream };
+      activeConnections[name]={pc:pc2,stream,analyserNode:an2};
       renderSenderCard(name);
       updateSenderCount();
-      log('Stream live: ' + name);
+      log('Stream live: '+name);
 
-      // VU animation
-      function vuTick() {
+      // VU meter animation
+      function vuTick(){
         if(!activeConnections[name]) return;
-        const data = new Uint8Array(an2.frequencyBinCount);
+        const data=new Uint8Array(an2.frequencyBinCount);
         an2.getByteFrequencyData(data);
-        const avg = data.reduce((a,b)=>a+b,0)/data.length;
-        const vuFill = document.getElementById('vu_'+name);
-        if(vuFill) vuFill.style.width = Math.min(100, avg/255*100*2.5)+'%';
+        const avg=data.reduce((a,b)=>a+b,0)/data.length;
+        const vuFill=document.getElementById('vu_'+name);
+        if(vuFill) vuFill.style.width=Math.min(100,avg/255*100*2.5)+'%';
         requestAnimationFrame(vuTick);
       }
       vuTick();
 
-    } catch(err) {
-      log('Stream start failed: ' + err.message, 'err');
+    } catch(err){
+      log('Stream start failed: '+err.message,'err');
+      setSys('IDLE','idle');
     }
   }
 
-  autoReconnectFn = () => {
-    document.getElementById('senderSrvState').textContent = 'ONLINE';
-    log('Server back online.', 'warn');
+  autoReconnectFn=()=>{
+    document.getElementById('senderSrvState').textContent='ONLINE';
+    log('Server back online.','warn');
   };
 
-  document.getElementById('startStreamBtn').addEventListener('click', startStream);
+  document.getElementById('startStreamBtn').addEventListener('click',startStream);
   log('SENDER INIT. Ready to broadcast.');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BOOT
-// ─────────────────────────────────────────────────────────────────────────────
+// ── BOOT ──────────────────────────────────────────────────────────────────────
 resizeCanvas();
 requestAnimationFrame(vizLoop);
-
-if(ROLE === 'receiver') initReceiver();
+if(ROLE==='receiver') initReceiver();
 else initSender();
-
 startHealthLoop();
 </script>
 </body>
