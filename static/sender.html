@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Y4Z // SENDER</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050608;
+      --bg-panel: rgba(10,12,16,0.92);
+      --neon-cyan: #00f0ff;
+      --neon-magenta: #ff003c;
+      --neon-yellow: #fcee0a;
+      --neon-green: #00ff41;
+      --neon-orange: #ff8800;
+      --text-main: #d1d5db;
+      --text-muted: #6b7280;
+      --grid-line: rgba(0,240,255,0.06);
+      --font-ui: 'Rajdhani', sans-serif;
+      --font-mono: 'Share Tech Mono', monospace;
+      --clip-a: polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);
+      --clip-b: polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#050608;color:var(--text-main);font-family:var(--font-ui);min-height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
+    body::after{content:" ";display:block;position:fixed;inset:0;background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.22) 50%),linear-gradient(90deg,rgba(255,0,0,0.05),rgba(0,255,0,0.02),rgba(0,0,255,0.05));background-size:100% 2px,3px 100%;pointer-events:none;z-index:999;}
+    .grid-bg{position:fixed;inset:0;z-index:-1;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:30px 30px;}
+    .hud{display:flex;flex-direction:column;height:100dvh;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:8px;}
+    .header-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:var(--bg-panel);border:1px solid var(--neon-orange);border-left:4px solid var(--neon-orange);clip-path:var(--clip-a);box-shadow:0 0 12px rgba(255,136,0,0.15);}
+    .brand h1{font-size:1.4rem;letter-spacing:3px;color:var(--neon-orange);text-transform:uppercase;line-height:1;}
+    .brand span{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);}
+    .header-right{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:0.8rem;}
+    .role-badge{padding:3px 10px;border:1px solid var(--neon-orange);color:var(--neon-orange);font-size:0.7rem;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
+    .nav-link{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);text-decoration:none;padding:3px 8px;border:1px solid rgba(0,240,255,0.2);}
+    .nav-link:hover{color:var(--neon-cyan);border-color:var(--neon-cyan);}
+    .sys-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);}
+    .sys-dot.live{background:var(--neon-green);box-shadow:0 0 8px var(--neon-green);}
+    .sys-dot.warn{background:var(--neon-yellow);box-shadow:0 0 8px var(--neon-yellow);animation:blink 1s infinite;}
+    .sys-dot.err{background:var(--neon-magenta);box-shadow:0 0 8px var(--neon-magenta);}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+    .core{display:flex;flex:1;gap:8px;min-height:0;}
+    .viz-wrap{flex:1;position:relative;background:radial-gradient(circle at center,rgba(255,136,0,0.04) 0%,transparent 60%),#000;border:1px solid rgba(255,136,0,0.2);clip-path:var(--clip-b);overflow:hidden;}
+    canvas{width:100%;height:100%;display:block;}
+    .viz-label{position:absolute;bottom:10px;left:14px;font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-orange);opacity:0.6;}
+    .side{width:330px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
+    .panel{background:var(--bg-panel);border:1px solid rgba(255,136,0,0.18);padding:14px;clip-path:var(--clip-a);}
+    .panel-hdr{font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-orange);text-transform:uppercase;border-bottom:1px dashed rgba(255,136,0,0.25);padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;}
+    .btn-row{display:flex;flex-wrap:wrap;gap:6px;}
+    button{flex:1;min-width:70px;background:transparent;color:var(--text-main);border:1px solid rgba(255,136,0,0.35);padding:7px 10px;font-family:var(--font-mono);font-size:0.78rem;text-transform:uppercase;cursor:pointer;transition:all 0.18s ease;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);}
+    button:hover{background:rgba(255,136,0,0.1);border-color:var(--neon-orange);}
+    button:active{transform:scale(0.97);}
+    button.primary{border-color:var(--neon-orange);color:var(--neon-orange);background:rgba(255,136,0,0.04);}
+    button.primary:hover{background:var(--neon-orange);color:#000;}
+    button.danger{border-color:var(--neon-magenta);color:var(--neon-magenta);}
+    button.danger:hover{background:var(--neon-magenta);color:#000;}
+    button:disabled{opacity:0.35;cursor:not-allowed;}
+    .stream-list{display:flex;flex-direction:column;gap:6px;}
+    .sender-card{border:1px solid rgba(255,136,0,0.3);padding:8px 10px;display:flex;flex-direction:column;gap:4px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
+    .sender-card-row{display:flex;align-items:center;gap:8px;}
+    .vu-bar{flex:1;height:6px;background:rgba(255,136,0,0.1);overflow:hidden;}
+    .vu-fill{height:100%;width:0%;background:var(--neon-orange);box-shadow:0 0 8px var(--neon-orange);transition:width 0.08s linear;}
+    .field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
+    .field label{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;}
+    .field input,.field select{background:rgba(0,0,0,0.5);border:1px solid rgba(255,136,0,0.3);color:var(--text-main);padding:6px 8px;font-family:var(--font-mono);font-size:0.8rem;width:100%;outline:none;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
+    .field input:focus,.field select:focus{border-color:var(--neon-orange);}
+    .field select option{background:#0a0c10;}
+    .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+    .dk{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;}
+    .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .terminal{font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-green);background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.15);padding:8px;height:110px;overflow-y:auto;clip-path:var(--clip-b);}
+    .lg{margin-bottom:3px;word-break:break-all;}
+    .lt{color:var(--text-muted);margin-right:4px;}
+    .le{color:var(--neon-magenta);}
+    .lw{color:var(--neon-yellow);}
+    @media(max-width:800px){.core{flex-direction:column;}.side{width:100%;flex:0 0 auto;}.viz-wrap{min-height:30vh;}}
+  </style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="hud">
+  <header class="header-bar">
+    <div class="brand">
+      <h1>Audio_Sync_LINK</h1>
+      <span>// SENDER — Y4Z.DEV</span>
+    </div>
+    <div class="header-right">
+      <a class="nav-link" href="/receiver">▶ Receiver</a>
+      <span class="role-badge">SENDER</span>
+      <span class="sys-dot" id="sysDot"></span>
+      <span id="sysText" style="font-family:var(--font-mono);font-size:0.8rem;">IDLE</span>
+    </div>
+  </header>
+  <main class="core">
+    <section class="viz-wrap">
+      <canvas id="viz"></canvas>
+      <div class="viz-label">› <span id="vizLabel">TX_STANDBY</span></div>
+    </section>
+    <aside class="side">
+      <div class="panel">
+        <div class="panel-hdr"><span>[01] New Stream</span></div>
+        <div class="field">
+          <label>Stream Name</label>
+          <input type="text" id="streamName" placeholder="e.g. game, mic, music" maxlength="32">
+        </div>
+        <div class="field">
+          <label>Source</label>
+          <select id="sourceType">
+            <option value="system">System Audio (server cpal)</option>
+            <option value="browser">Browser Mic (getUserMedia)</option>
+            <option value="display">Display Audio (getDisplayMedia)</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="primary" id="startStreamBtn">▶ Start Stream</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-hdr"><span>[02] Active Streams</span><span id="senderStreamCount">0</span></div>
+        <div id="senderStreamList" class="stream-list">
+          <div class="no-streams" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No active streams.</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-hdr"><span>[03] Status</span></div>
+        <div class="data-grid">
+          <div><div class="dk">STREAMS</div><div class="dv" id="senderNetState">0 ACTIVE</div></div>
+          <div><div class="dk">SERVER</div><div class="dv" id="senderSrvState">ONLINE</div></div>
+        </div>
+      </div>
+      <div class="terminal" id="logBox"></div>
+    </aside>
+  </main>
+</div>
+<script>
+const canvas = document.getElementById('viz');
+const ctx    = canvas.getContext('2d');
+let analyserNodes = [];
+
+function resizeCanvas(){
+  const r=canvas.parentNode.getBoundingClientRect();
+  const d=window.devicePixelRatio||1;
+  canvas.width=r.width*d;canvas.height=r.height*d;
+  ctx.setTransform(d,0,0,d,0,0);
+}
+window.addEventListener('resize',resizeCanvas);
+
+function vizLoop(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  if(analyserNodes.length===0){
+    ctx.fillStyle='rgba(255,136,0,0.15)';ctx.fillRect(0,h/2-1,w,2);
+  } else {
+    analyserNodes.forEach((an,idx)=>{
+      const data=new Uint8Array(an.frequencyBinCount);
+      an.getByteFrequencyData(data);
+      const bars=60,step=Math.floor(data.length/bars),bw=w/bars;
+      const cy=h/2;
+      for(let i=0;i<bars;i++){
+        let s=0;for(let j=0;j<step;j++)s+=data[i*step+j]||0;
+        const norm=Math.pow(s/step/255,1.5);
+        const bh=Math.max(2,norm*(h*0.4));
+        ctx.fillStyle='#ff8800';ctx.shadowBlur=8*norm;ctx.shadowColor='#ff8800';
+        ctx.fillRect(i*bw+1,cy-bh,bw-2,bh);
+        ctx.fillRect(i*bw+1,cy,bw-2,bh);
+      }
+      ctx.shadowBlur=0;
+    });
+  }
+  requestAnimationFrame(vizLoop);
+}
+
+const logEl  = document.getElementById('logBox');
+const sysDot = document.getElementById('sysDot');
+const sysText= document.getElementById('sysText');
+
+function log(msg,type=''){
+  const d=document.createElement('div');
+  d.className='lg'+(type==='err'?' le':type==='warn'?' lw':'');
+  const t=new Date().toLocaleTimeString('en-US',{hour12:false});
+  d.innerHTML=`<span class="lt">[${t}]</span>${msg}`;
+  logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;
+}
+function setSys(text,level='idle'){
+  sysText.textContent=text;
+  sysDot.className='sys-dot '+(level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
+}
+function makePC(){
+  return new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+}
+async function sendOffer(endpoint,body){
+  const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+const activeConnections={};
+let backoff=2000;
+
+function updateCount(){
+  const n=Object.keys(activeConnections).length;
+  document.getElementById('senderStreamCount').textContent=n;
+  document.getElementById('senderNetState').textContent=n+' ACTIVE';
+  if(n===0)setSys('IDLE','idle');
+}
+
+function renderCard(name){
+  const list=document.getElementById('senderStreamList');
+  const ex=list.querySelector('.no-streams');
+  if(ex)ex.remove();
+  const card=document.createElement('div');
+  card.id='scard_'+name;card.className='sender-card';
+  card.innerHTML=`<div class="sender-card-row"><span style="font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-orange);flex:1;">● ${name}</span><button class="danger" style="flex:0;min-width:60px;padding:3px 6px;font-size:0.7rem;" onclick="stopStream('${name}')">Stop</button></div><div class="vu-bar"><div class="vu-fill" id="vu_${name}"></div></div>`;
+  list.appendChild(card);
+}
+
+window.stopStream=function(name){
+  const conn=activeConnections[name];
+  if(conn){
+    if(conn.pc)conn.pc.close();
+    if(conn.stream)conn.stream.getTracks().forEach(t=>t.stop());
+    if(conn.an)analyserNodes=analyserNodes.filter(a=>a!==conn.an);
+    delete activeConnections[name];
+  }
+  fetch('/stream/'+encodeURIComponent(name),{method:'DELETE'}).catch(()=>{});
+  const card=document.getElementById('scard_'+name);
+  if(card)card.remove();
+  const list=document.getElementById('senderStreamList');
+  if(list&&list.children.length===0){
+    const ph=document.createElement('div');ph.className='no-streams';
+    ph.style.cssText='font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);';
+    ph.textContent='No active streams.';list.appendChild(ph);
+  }
+  updateCount();log('Stream stopped: '+name,'warn');
+};
+
+async function startStream(){
+  const name  =document.getElementById('streamName').value.trim();
+  const source=document.getElementById('sourceType').value;
+  if(!name){log('Enter a stream name first.','warn');return;}
+  if(activeConnections[name]){log('"'+name+'" already running.','warn');return;}
+  setSys('BROADCASTING','live');
+  log('Starting: '+name+' ('+source+')');
+  document.getElementById('vizLabel').textContent='TX // '+name;
+
+  if(source==='system'){
+    try{
+      const dpc=makePC();
+      dpc.addTransceiver('audio',{direction:'sendrecv'});
+      const offer=await dpc.createOffer();
+      await dpc.setLocalDescription(offer);
+      await sendOffer('/sender/offer',{name,source:'system',sdp:dpc.localDescription});
+      activeConnections[name]={pc:dpc,stream:null,an:null};
+      renderCard(name);updateCount();
+      log('System capture: '+name);
+    } catch(err){
+      log('Failed: '+err.message,'err');setSys('IDLE','idle');
+    }
+    return;
+  }
+
+  let stream;
+  try{
+    if(source==='browser'){
+      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:2,sampleRate:48000},video:false});
+    } else {
+      stream=await navigator.mediaDevices.getDisplayMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:2,sampleRate:48000},video:true});
+      stream.getVideoTracks().forEach(t=>t.stop());
+    }
+  } catch(err){
+    log('Media capture failed: '+err.message,'err');setSys('IDLE','idle');return;
+  }
+
+  try{
+    const pc2=makePC();
+    const [audioTrack]=stream.getAudioTracks();
+    const sender=pc2.addTrack(audioTrack,stream);
+    const params=sender.getParameters();
+    if(!params.encodings)params.encodings=[{}];
+    params.encodings[0].maxBitrate=192000;
+    params.encodings[0].priority='high';
+    sender.setParameters(params).catch(()=>{});
+
+    const actx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:48000});
+    const src2=actx.createMediaStreamSource(stream);
+    const an2=actx.createAnalyser();an2.fftSize=256;
+    src2.connect(an2);
+    analyserNodes.push(an2);
+
+    pc2.onconnectionstatechange=()=>{
+      log('['+name+'] '+pc2.connectionState);
+      if(pc2.connectionState==='failed'||pc2.connectionState==='disconnected'){
+        delete activeConnections[name];
+        analyserNodes=analyserNodes.filter(a=>a!==an2);
+        updateCount();
+        log('Link lost: '+name+'. Retry in '+(backoff/1000)+'s','warn');
+        setTimeout(startStream,backoff);
+        backoff=Math.min(backoff*2,30000);
+      }
+      if(pc2.connectionState==='connected')backoff=2000;
+    };
+
+    const offer=await pc2.createOffer();
+    await pc2.setLocalDescription(offer);
+    const answer=await sendOffer('/sender/offer',{name,source,sdp:pc2.localDescription});
+    await pc2.setRemoteDescription(answer);
+
+    activeConnections[name]={pc:pc2,stream,an:an2};
+    renderCard(name);updateCount();
+    log('Stream live: '+name);
+
+    function vuTick(){
+      if(!activeConnections[name])return;
+      const data=new Uint8Array(an2.frequencyBinCount);
+      an2.getByteFrequencyData(data);
+      const avg=data.reduce((a,b)=>a+b,0)/data.length;
+      const vu=document.getElementById('vu_'+name);
+      if(vu)vu.style.width=Math.min(100,avg/255*100*2.5)+'%';
+      requestAnimationFrame(vuTick);
+    }
+    vuTick();
+  } catch(err){
+    log('Start failed: '+err.message,'err');setSys('IDLE','idle');
+  }
+}
+
+document.getElementById('startStreamBtn').addEventListener('click',startStream);
+resizeCanvas();
+requestAnimationFrame(vizLoop);
+log('SENDER READY.');
+</script>
+</body>
+</html>

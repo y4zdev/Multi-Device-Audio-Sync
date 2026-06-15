@@ -41,7 +41,14 @@ use webrtc::{
 };
 use webrtc_ice::udp_network::{EphemeralUDP, UDPNetwork};
 
-// ── Request / Response types ─────────────────────────────────────────────────
+// ── constants ─────────────────────────────────────────────────────────────────
+const OPUS_SR: usize    = 48_000;
+const OPUS_CH: usize    = 2;
+const FRAME_SIZE: usize = 960;   // 20 ms @ 48 kHz
+const DURATION_MS: u64  = 20;
+const OPUS_BITRATE: i32 = 192_000;
+
+// ── Request / Response types ──────────────────────────────────────────────────
 
 #[derive(Deserialize)]
 struct SenderOfferRequest {
@@ -61,7 +68,7 @@ struct StreamsResponse {
     streams: Vec<String>,
 }
 
-// ── App state ────────────────────────────────────────────────────────────────
+// ── App state ─────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
 struct AppState {
@@ -70,7 +77,7 @@ struct AppState {
     cert_pem: Arc<String>,
 }
 
-// ── LAN IP ───────────────────────────────────────────────────────────────────
+// ── LAN IP ────────────────────────────────────────────────────────────────────
 
 fn local_lan_ip() -> String {
     UdpSocket::bind("0.0.0.0:0")
@@ -79,7 +86,7 @@ fn local_lan_ip() -> String {
         .unwrap_or_else(|_| "127.0.0.1".to_string())
 }
 
-// ── Self-signed TLS cert ─────────────────────────────────────────────────────
+// ── Self-signed TLS cert ──────────────────────────────────────────────────────
 
 fn make_self_signed_cert(lan_ip: &str) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut params = CertificateParams::new(vec![
@@ -152,13 +159,13 @@ async fn main() -> Result<()> {
     };
 
     let app = Router::new()
-        // ── Pages
-        .route("/",         get(index_handler))
-        .route("/sender",   get(sender_redirect))
-        .route("/receiver", get(receiver_redirect))
+        // Pages
+        .route("/",         get(receiver_handler))
+        .route("/sender",   get(sender_handler))
+        .route("/receiver", get(receiver_handler))
         .route("/cert",     get(cert_page_handler))
         .route("/cert.pem", get(cert_download_handler))
-        // ── API
+        // API
         .route("/streams",        get(list_streams))
         .route("/sender/offer",   post(handle_sender_offer))
         .route("/receiver/offer", post(handle_receiver_offer))
@@ -181,22 +188,17 @@ async fn main() -> Result<()> {
 
 // ── Page handlers ─────────────────────────────────────────────────────────────
 
-async fn index_handler() -> Html<&'static str> {
+async fn receiver_handler() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
 }
 
-async fn sender_redirect() -> Redirect {
-    Redirect::to("/?role=sender")
-}
-
-async fn receiver_redirect() -> Redirect {
-    Redirect::to("/")
+async fn sender_handler() -> Html<&'static str> {
+    Html(include_str!("../static/sender.html"))
 }
 
 async fn cert_page_handler(
     State(state): State<AppState>,
 ) -> Html<String> {
-    let pem = state.cert_pem.replace('\n', "\\n");
     let html = format!(r#"<!doctype html>
 <html lang="en">
 <head>
@@ -220,7 +222,6 @@ async fn cert_page_handler(
             border:1px solid #00f0ff;color:#00f0ff;text-decoration:none;
             font-size:0.9rem;letter-spacing:2px;transition:background 0.2s;}}
     a.btn:hover{{background:#00f0ff;color:#000;}}
-    a.link{{color:#00f0ff;font-size:0.8rem;text-align:center;display:block;margin-top:4px;}}
     .warn{{color:#ff8800;font-size:0.78rem;text-align:center;}}
   </style>
 </head>
@@ -231,15 +232,15 @@ async fn cert_page_handler(
     <div class="step"><span class="num">1.</span><span class="desc">Tap the button below to <b>download cert.pem</b> to this device.</span></div>
     <a class="btn" href="/cert.pem" download="y4z-cert.pem">⬇ Download cert.pem</a>
     <div class="step"><span class="num">2.</span><span class="desc"><b>Android:</b> Settings → Security → Install certificate → CA certificate → pick the file.</span></div>
-    <div class="step"><span class="num">2.</span><span class="desc"><b>iOS:</b> Open the .pem file → it installs a profile. Then Settings → General → VPN &amp; Device Management → trust it. Then Settings → About → Certificate Trust Settings → enable it.</span></div>
+    <div class="step"><span class="num">2.</span><span class="desc"><b>iOS:</b> Open the .pem file → installs a profile. Then Settings → General → VPN &amp; Device Management → trust it. Then Settings → About → Certificate Trust Settings → enable it.</span></div>
     <div class="step"><span class="num">3.</span><span class="desc"><b>Desktop Chrome/Firefox:</b> Navigate to the URL below and click <b>Advanced → Proceed</b>. No install needed.</span></div>
     <div class="step"><span class="num">4.</span><span class="desc">Come back here and open the app links below.</span></div>
   </div>
   <div class="card">
-    <a class="btn" href="/">▶ Open Receiver</a>
-    <a class="btn" href="/?role=sender">▶ Open Sender</a>
+    <a class="btn" href="/receiver">▶ Open Receiver</a>
+    <a class="btn" href="/sender">▶ Open Sender</a>
   </div>
-  <div class="warn">Note: certificate is re-generated on each server restart. Re-trust if you restart the server.</div>
+  <div class="warn">Certificate is re-generated on each server restart. Re-trust if you restart the server.</div>
 </body>
 </html>
 "#);
@@ -250,13 +251,15 @@ async fn cert_download_handler(
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
     (
-        [(axum::http::header::CONTENT_TYPE, "application/x-pem-file"),
-         (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"y4z-cert.pem\"")],
+        [
+            (axum::http::header::CONTENT_TYPE, "application/x-pem-file"),
+            (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"y4z-cert.pem\""),
+        ],
         state.cert_pem.as_bytes().to_vec(),
     )
 }
 
-// ── API handlers ──────────────────────────────────────────────────────────────
+// ── API handlers ───────────────────────────────────────────────────────────────
 
 async fn list_streams(
     State(state): State<AppState>,
@@ -284,10 +287,9 @@ async fn handle_sender_offer(
     let track = Arc::new(TrackLocalStaticSample::new(
         RTCRtpCodecCapability {
             mime_type:     MIME_TYPE_OPUS.to_owned(),
-            clock_rate:    48_000,
-            channels:      2,
-            // Enable FEC + DTX for better resilience on LAN
-            sdp_fmtp_line: "minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1".to_string(),
+            clock_rate:    OPUS_SR as u32,
+            channels:      OPUS_CH as u16,
+            sdp_fmtp_line: "minptime=20;useinbandfec=1;stereo=1;sprop-stereo=1".to_string(),
             ..Default::default()
         },
         name.clone(),
@@ -296,7 +298,6 @@ async fn handle_sender_offer(
     state.streams.insert(name.clone(), Arc::clone(&track));
     println!("[stream] registered: {name} (source={source})");
 
-    // System audio: server-side cpal capture
     if source == "system" {
         let rt_handle = Handle::current();
         let name2 = name.clone();
@@ -311,7 +312,7 @@ async fn handle_sender_offer(
         return negotiate_and_answer(pc, req.sdp).await;
     }
 
-    // Browser / display audio: inbound WebRTC
+    // Browser / display audio: relay inbound WebRTC track
     let pc = build_peer_connection(&state).await;
 
     pc.on_track(Box::new({
@@ -320,18 +321,17 @@ async fn handle_sender_offer(
         move |remote_track, _, _| {
             let relay = Arc::clone(&relay_track);
             let name3 = name2.clone();
-            println!("[sender/browser] [{name3}] inbound track: {} {}",
-                remote_track.kind(), remote_track.id());
+            println!("[sender/browser] [{name3}] inbound track");
             tokio::spawn(async move {
                 while let Ok((rtp_pkt, _)) = remote_track.read_rtp().await {
                     let payload = Bytes::copy_from_slice(&rtp_pkt.payload);
                     let _ = relay.write_sample(&Sample {
                         data:     payload,
-                        duration: std::time::Duration::from_millis(10),
+                        duration: std::time::Duration::from_millis(DURATION_MS),
                         ..Default::default()
                     }).await;
                 }
-                println!("[sender/browser] [{name3}] inbound track ended");
+                println!("[sender/browser] [{name3}] track ended");
             });
             Box::pin(async {})
         }
@@ -371,7 +371,7 @@ async fn handle_receiver_offer(
     negotiate_and_answer(pc, req.sdp).await
 }
 
-// ── WebRTC helpers ────────────────────────────────────────────────────────────
+// ── WebRTC helpers ─────────────────────────────────────────────────────────────
 
 fn attach_state_cleanup(
     pc:      Arc<webrtc::peer_connection::RTCPeerConnection>,
@@ -442,7 +442,7 @@ async fn negotiate_and_answer(
     Json(final_answer)
 }
 
-// ── Audio capture (system source) ────────────────────────────────────────────
+// ── Audio capture (system source) ─────────────────────────────────────────────
 
 fn pulse_default_source_name() -> Option<String> {
     let out = Command::new("pactl").arg("get-default-source").output().ok()?;
@@ -506,108 +506,116 @@ fn start_audio_capture(
     let stream_cfg: cpal::StreamConfig = sup_cfg.clone().into();
 
     println!("[cpal] device : {}", device.name().unwrap_or_default());
-    println!("[cpal] config : {:?}", sup_cfg);
-
-    const OPUS_SR:    usize = 48_000;
-    const OPUS_CH:    usize = 2;
-    // 20 ms frames (960 samples @ 48k) — standard Opus frame, reduces overhead
-    const FRAME_SIZE: usize = 960;
-    const DURATION_MS: u64  = 20;
+    println!("[cpal] native : {}Hz {}ch", input_sr, input_ch);
 
     let mut encoder = opus::Encoder::new(
         OPUS_SR as u32,
         opus::Channels::Stereo,
         opus::Application::Audio,
     )?;
-    // Higher bitrate = better quality on LAN
-    encoder.set_bitrate(opus::Bitrate::Bits(192_000))?;
+    encoder.set_bitrate(opus::Bitrate::Bits(OPUS_BITRATE))?;
     encoder.set_vbr(true)?;
     encoder.set_inband_fec(true)?;
     encoder.set_packet_loss_perc(5)?;
 
-    fn make_callback(
-        track:       Arc<TrackLocalStaticSample>,
-        rt_handle:   Handle,
-        mut encoder: opus::Encoder,
-        input_sr:    usize,
-        input_ch:    usize,
-    ) -> impl FnMut(Vec<f32>) + Send + 'static {
-        let mut input_pcm: Vec<f32> = Vec::with_capacity(8192);
-        let mut opus_pcm:  Vec<i16> = Vec::with_capacity(FRAME_SIZE * OPUS_CH * 4);
+    // Shared ring buffer: native f32 samples waiting to be resampled + encoded
+    let ring: Arc<std::sync::Mutex<Vec<f32>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let ring_enc = Arc::clone(&ring);
+    let track_enc = Arc::clone(&track);
+    let rt_enc = rt_handle.clone();
 
-        move |samples: Vec<f32>| {
-            input_pcm.extend_from_slice(&samples);
-            let frames_in = input_pcm.len() / input_ch;
-            if frames_in == 0 { return; }
+    // Encoder thread: drains ring buffer, resamples to 48kHz stereo, encodes Opus
+    std::thread::spawn(move || {
+        let ratio = OPUS_SR as f64 / input_sr as f64;
+        let min_input_needed = ((FRAME_SIZE as f64 / ratio).ceil() as usize + 1) * input_ch;
+        let mut opus_pcm: Vec<i16> = Vec::with_capacity(FRAME_SIZE * OPUS_CH * 4);
 
-            let ratio      = OPUS_SR as f64 / input_sr as f64;
-            let frames_out = ((frames_in as f64) * ratio) as usize;
-            if frames_out == 0 { return; }
-
-            let mut resampled = Vec::with_capacity(frames_out * OPUS_CH);
-            for i in 0..frames_out {
-                let src = ((i as f64 / ratio) as usize).min(frames_in - 1);
-                let l = input_pcm[src * input_ch];
-                let r = if input_ch >= 2 { input_pcm[src * input_ch + 1] } else { l };
-                resampled.push((l * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
-                resampled.push((r * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16);
+        loop {
+            // Wait until we have enough native samples to produce at least one Opus frame
+            loop {
+                let len = ring_enc.lock().unwrap().len();
+                if len >= min_input_needed { break; }
+                std::thread::sleep(std::time::Duration::from_millis(1));
             }
-            input_pcm.clear();
 
-            opus_pcm.extend_from_slice(&resampled);
+            let chunk: Vec<f32> = {
+                let mut buf = ring_enc.lock().unwrap();
+                let take = buf.len(); // process all available
+                buf.drain(..take).collect()
+            };
+
+            // Resample + convert to stereo i16 at 48kHz
+            let native_frames = chunk.len() / input_ch;
+            let target_frames = (native_frames as f64 * ratio) as usize;
+
+            for i in 0..target_frames {
+                let src_f = i as f64 / ratio;
+                let src_i = src_f as usize;
+                let frac  = (src_f - src_i as f64) as f32;
+
+                let i0 = (src_i * input_ch).min(chunk.len().saturating_sub(input_ch));
+                let i1 = ((src_i + 1) * input_ch).min(chunk.len().saturating_sub(input_ch));
+
+                let l0 = chunk[i0];
+                let r0 = if input_ch >= 2 { chunk[i0 + 1] } else { l0 };
+                let l1 = chunk[i1];
+                let r1 = if input_ch >= 2 { chunk[i1 + 1] } else { l1 };
+
+                let l = l0 + (l1 - l0) * frac;
+                let r = r0 + (r1 - r0) * frac;
+
+                opus_pcm.push((l.clamp(-1.0, 1.0) * i16::MAX as f32) as i16);
+                opus_pcm.push((r.clamp(-1.0, 1.0) * i16::MAX as f32) as i16);
+            }
+
+            // Encode complete 20ms Opus frames
             while opus_pcm.len() >= FRAME_SIZE * OPUS_CH {
                 let frame: Vec<i16> = opus_pcm.drain(..FRAME_SIZE * OPUS_CH).collect();
                 let mut out = vec![0u8; 4000];
                 if let Ok(n) = encoder.encode(&frame, &mut out) {
                     out.truncate(n);
-                    rt_handle.spawn(write_encoded_frame(
-                        Arc::clone(&track), out, DURATION_MS,
+                    rt_enc.spawn(write_encoded_frame(
+                        Arc::clone(&track_enc), out, DURATION_MS,
                     ));
                 }
             }
         }
-    }
+    });
 
-    let cb = make_callback(
-        Arc::clone(&track), rt_handle.clone(), encoder, input_sr, input_ch,
-    );
-    let cb = Arc::new(std::sync::Mutex::new(cb));
-
+    // cpal callback: push raw samples into ring buffer
     let stream = match sup_cfg.sample_format() {
         cpal::SampleFormat::F32 => {
-            let cb = Arc::clone(&cb);
+            let ring2 = Arc::clone(&ring);
             device.build_input_stream(
                 &stream_cfg,
-                move |data: &[f32], _| { cb.lock().unwrap()(data.to_vec()); },
-                |e| eprintln!("[cpal] stream error: {e}"),
+                move |data: &[f32], _| {
+                    ring2.lock().unwrap().extend_from_slice(data);
+                },
+                |e| eprintln!("[cpal] {e}"),
                 None,
             )?
         }
         cpal::SampleFormat::I16 => {
-            let cb = Arc::clone(&cb);
+            let ring2 = Arc::clone(&ring);
             device.build_input_stream(
                 &stream_cfg,
                 move |data: &[i16], _| {
-                    let f: Vec<f32> = data.iter()
-                        .map(|&s| s as f32 / i16::MAX as f32)
-                        .collect();
-                    cb.lock().unwrap()(f);
+                    let mut buf = ring2.lock().unwrap();
+                    buf.extend(data.iter().map(|&s| s as f32 / i16::MAX as f32));
                 },
-                |e| eprintln!("[cpal] stream error: {e}"),
+                |e| eprintln!("[cpal] {e}"),
                 None,
             )?
         }
         cpal::SampleFormat::U16 => {
-            let cb = Arc::clone(&cb);
+            let ring2 = Arc::clone(&ring);
             device.build_input_stream(
                 &stream_cfg,
                 move |data: &[u16], _| {
-                    let f: Vec<f32> = data.iter()
-                        .map(|&s| (s as f32 - 32768.0) / 32768.0)
-                        .collect();
-                    cb.lock().unwrap()(f);
+                    let mut buf = ring2.lock().unwrap();
+                    buf.extend(data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0));
                 },
-                |e| eprintln!("[cpal] stream error: {e}"),
+                |e| eprintln!("[cpal] {e}"),
                 None,
             )?
         }
@@ -615,6 +623,6 @@ fn start_audio_capture(
     };
 
     stream.play()?;
-    println!("[cpal] audio capture started (20 ms frames / 192 kbps)");
+    println!("[cpal] audio capture started ({DURATION_MS}ms frames / {OPUS_BITRATE}bps)");
     loop { std::thread::sleep(std::time::Duration::from_secs(1)); }
 }
