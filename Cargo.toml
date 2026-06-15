@@ -9,6 +9,7 @@ axum         = "0.8"
 axum-server  = { version = "0.7", features = ["tls-rustls"] }
 bytes        = "1.11"
 cpal         = "0.15"
+dashmap      = "6"
 opus         = "0.3"
 rcgen        = { version = "0.13", features = ["x509-parser"] }
 rustls       = { version = "0.23", features = ["ring"], default-features = false }

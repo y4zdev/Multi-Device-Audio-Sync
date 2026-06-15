@@ -10,693 +10,782 @@
   <style>
     :root {
       --bg: #050608;
-      --bg-panel: rgba(10, 12, 16, 0.85);
+      --bg-panel: rgba(10,12,16,0.92);
       --neon-cyan: #00f0ff;
       --neon-magenta: #ff003c;
       --neon-yellow: #fcee0a;
       --neon-green: #00ff41;
+      --neon-orange: #ff8800;
       --text-main: #d1d5db;
       --text-muted: #6b7280;
-      --grid-line: rgba(0, 240, 255, 0.08);
+      --grid-line: rgba(0,240,255,0.06);
       --font-ui: 'Rajdhani', sans-serif;
       --font-mono: 'Share Tech Mono', monospace;
-      --clip-angle: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
-      --clip-reverse: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+      --clip-a: polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);
+      --clip-b: polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
     }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background-color: var(--bg);
-      color: var(--text-main);
-      font-family: var(--font-ui);
-      overflow: hidden;
-      min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      background:#050608;color:var(--text-main);
+      font-family:var(--font-ui);min-height:100dvh;
+      display:flex;flex-direction:column;overflow:hidden;
     }
-
-    /* CRT Scanline Overlay */
-    body::after {
-      content: " ";
-      display: block;
-      position: absolute;
-      top: 0; left: 0; bottom: 0; right: 0;
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-      z-index: 999;
-      background-size: 100% 2px, 3px 100%;
-      pointer-events: none;
+    body::after{
+      content:" ";display:block;position:fixed;inset:0;
+      background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.22) 50%),
+                 linear-gradient(90deg,rgba(255,0,0,0.05),rgba(0,255,0,0.02),rgba(0,0,255,0.05));
+      background-size:100% 2px,3px 100%;pointer-events:none;z-index:999;
     }
-
-    /* Grid Background */
-    .grid-bg {
-      position: fixed;
-      inset: 0;
-      background-image: 
-        linear-gradient(var(--grid-line) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-      background-size: 30px 30px;
-      z-index: -1;
-      opacity: 0.5;
+    .grid-bg{
+      position:fixed;inset:0;z-index:-1;
+      background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),
+                       linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
+      background-size:30px 30px;
     }
-
-    /* Layout */
-    .hud-wrapper {
-      display: flex;
-      flex-direction: column;
-      height: 100dvh;
-      padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
-      gap: 10px;
+    /* ── Layout ── */
+    .hud{display:flex;flex-direction:column;height:100dvh;
+         padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right))
+                 max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:8px;}
+    .header-bar{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:10px 15px;background:var(--bg-panel);
+      border:1px solid var(--neon-cyan);border-left:4px solid var(--neon-cyan);
+      clip-path:var(--clip-a);box-shadow:0 0 12px rgba(0,240,255,0.15);
     }
-
-    .header-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      padding: 10px 15px;
-      background: var(--bg-panel);
-      border: 1px solid var(--neon-cyan);
-      border-left: 4px solid var(--neon-cyan);
-      clip-path: var(--clip-angle);
-      box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+    .brand h1{font-size:1.4rem;letter-spacing:3px;color:var(--neon-cyan);text-transform:uppercase;line-height:1;}
+    .brand span{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);}
+    .header-right{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:0.8rem;}
+    .role-badge{
+      padding:3px 10px;border:1px solid;font-size:0.7rem;
+      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
     }
-
-    .brand h1 {
-      font-size: 1.5rem;
-      letter-spacing: 2px;
-      color: var(--neon-cyan);
-      text-transform: uppercase;
-      margin: 0;
-      line-height: 1;
+    .role-badge.receiver{border-color:var(--neon-cyan);color:var(--neon-cyan);}
+    .role-badge.sender{border-color:var(--neon-orange);color:var(--neon-orange);}
+    .sys-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);}
+    .sys-dot.live{background:var(--neon-green);box-shadow:0 0 8px var(--neon-green);}
+    .sys-dot.warn{background:var(--neon-yellow);box-shadow:0 0 8px var(--neon-yellow);animation:blink 1s infinite;}
+    .sys-dot.err{background:var(--neon-magenta);box-shadow:0 0 8px var(--neon-magenta);}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+    .core{display:flex;flex:1;gap:8px;min-height:0;}
+    /* ── Visualizer ── */
+    .viz-wrap{
+      flex:1;position:relative;
+      background:radial-gradient(circle at center,rgba(0,240,255,0.04) 0%,transparent 60%),#000;
+      border:1px solid rgba(0,240,255,0.2);clip-path:var(--clip-b);overflow:hidden;
     }
-    .brand span {
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-      color: var(--text-muted);
+    canvas{width:100%;height:100%;display:block;}
+    .viz-label{
+      position:absolute;bottom:10px;left:14px;
+      font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);opacity:0.6;
     }
-
-    .status-sys {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
+    /* ── Side panel ── */
+    .side{width:330px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
+    .panel{
+      background:var(--bg-panel);
+      border:1px solid rgba(0,240,255,0.18);
+      padding:14px;clip-path:var(--clip-a);
     }
-    .status-sys .dot {
-      width: 8px; height: 8px;
-      background: var(--text-muted);
-      border-radius: 50%;
-      box-shadow: 0 0 5px var(--text-muted);
+    .panel-hdr{
+      font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-cyan);
+      text-transform:uppercase;border-bottom:1px dashed rgba(0,240,255,0.25);
+      padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;
     }
-    .status-sys .dot.live { background: var(--neon-green); box-shadow: 0 0 10px var(--neon-green); }
-    .status-sys .dot.warn { background: var(--neon-yellow); box-shadow: 0 0 10px var(--neon-yellow); }
-    .status-sys .dot.err { background: var(--neon-magenta); box-shadow: 0 0 10px var(--neon-magenta); }
-
-    /* Core Layout Split */
-    .core-area {
-      display: flex;
-      flex: 1;
-      gap: 10px;
-      min-height: 0; /* allows flex children to shrink */
+    /* ── Buttons ── */
+    .btn-row{display:flex;flex-wrap:wrap;gap:6px;}
+    button{
+      flex:1;min-width:70px;background:transparent;color:var(--text-main);
+      border:1px solid rgba(0,240,255,0.35);padding:7px 10px;
+      font-family:var(--font-mono);font-size:0.78rem;text-transform:uppercase;
+      cursor:pointer;transition:all 0.18s ease;
+      clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);
     }
-
-    .visualizer-container {
-      flex: 1;
-      position: relative;
-      background: radial-gradient(circle at center, rgba(0,240,255,0.05) 0%, transparent 60%), #000;
-      border: 1px solid rgba(0, 240, 255, 0.3);
-      clip-path: var(--clip-reverse);
-      overflow: hidden;
-      display: flex;
+    button:hover{background:rgba(0,240,255,0.1);border-color:var(--neon-cyan);text-shadow:0 0 5px var(--neon-cyan);}
+    button:active{transform:scale(0.97);}
+    button.primary{border-color:var(--neon-cyan);color:var(--neon-cyan);background:rgba(0,240,255,0.04);}
+    button.primary:hover{background:var(--neon-cyan);color:#000;}
+    button.danger{border-color:var(--neon-magenta);color:var(--neon-magenta);}
+    button.danger:hover{background:var(--neon-magenta);color:#000;text-shadow:none;}
+    button.warn-btn{border-color:var(--neon-orange);color:var(--neon-orange);}
+    button.warn-btn:hover{background:var(--neon-orange);color:#000;text-shadow:none;}
+    button.active-btn{background:rgba(0,240,255,0.18);border-color:var(--neon-cyan);color:var(--neon-cyan);}
+    button:disabled{opacity:0.35;cursor:not-allowed;}
+    /* ── Stream cards ── */
+    .stream-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;}
+    .stream-card{
+      border:1px solid rgba(0,240,255,0.2);padding:8px 10px;
+      display:flex;align-items:center;gap:8px;
+      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+      transition:background 0.2s;
     }
-    canvas { width: 100%; height: 100%; display: block; }
-
-    /* Side Panel */
-    .side-panel {
-      width: 320px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      overflow-y: auto;
+    .stream-card:hover{background:rgba(0,240,255,0.05);}
+    .stream-card input[type=checkbox]{accent-color:var(--neon-cyan);width:14px;height:14px;cursor:pointer;}
+    .stream-name{flex:1;font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);}
+    .stream-state{font-family:var(--font-mono);font-size:0.65rem;width:70px;text-align:right;}
+    .stream-state.live{color:var(--neon-green);}
+    .stream-state.warn{color:var(--neon-yellow);}
+    .stream-state.err{color:var(--neon-magenta);}
+    .vol-row{display:flex;align-items:center;gap:6px;margin-top:4px;}
+    .vol-row input[type=range]{flex:1;accent-color:var(--neon-cyan);height:4px;cursor:pointer;}
+    .vol-label{font-family:var(--font-mono);font-size:0.65rem;color:var(--text-muted);min-width:28px;text-align:right;}
+    /* ── Sender stream cards ── */
+    .sender-card{
+      border:1px solid rgba(255,136,0,0.3);padding:8px 10px;
+      display:flex;flex-direction:column;gap:4px;
+      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
     }
-
-    .panel-box {
-      background: var(--bg-panel);
-      border: 1px solid rgba(0, 240, 255, 0.2);
-      padding: 15px;
-      clip-path: var(--clip-angle);
+    .sender-card-row{display:flex;align-items:center;gap:8px;}
+    .vu-bar{flex:1;height:6px;background:rgba(255,136,0,0.1);overflow:hidden;}
+    .vu-fill{height:100%;width:0%;background:var(--neon-orange);box-shadow:0 0 8px var(--neon-orange);transition:width 0.08s linear;}
+    /* ── Inputs ── */
+    .field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
+    .field label{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;}
+    .field input,.field select{
+      background:rgba(0,0,0,0.5);border:1px solid rgba(0,240,255,0.3);
+      color:var(--text-main);padding:6px 8px;font-family:var(--font-mono);
+      font-size:0.8rem;width:100%;outline:none;
+      clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
     }
-
-    .panel-header {
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-      color: var(--neon-cyan);
-      text-transform: uppercase;
-      margin-bottom: 10px;
-      border-bottom: 1px dashed rgba(0, 240, 255, 0.3);
-      padding-bottom: 4px;
-      display: flex;
-      justify-content: space-between;
+    .field input:focus,.field select:focus{border-color:var(--neon-cyan);}
+    .field select option{background:#0a0c10;}
+    /* ── Data grid ── */
+    .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+    .dk{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;}
+    .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    /* ── Terminal ── */
+    .terminal{
+      font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-green);
+      background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.15);
+      padding:8px;height:110px;overflow-y:auto;clip-path:var(--clip-b);
     }
-
-    /* Cyber Buttons */
-    .btn-group { display: flex; flex-wrap: wrap; gap: 8px; }
-    button {
-      flex: 1;
-      min-width: 80px;
-      background: transparent;
-      color: var(--text-main);
-      border: 1px solid rgba(0, 240, 255, 0.4);
-      padding: 8px 10px;
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      cursor: pointer;
-      clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-      transition: all 0.2s ease;
+    .lg{margin-bottom:3px;word-break:break-all;}
+    .lt{color:var(--text-muted);margin-right:4px;}
+    .le{color:var(--neon-magenta);}
+    .lw{color:var(--neon-yellow);}
+    /* ── Energy ── */
+    .energy-track{height:4px;background:rgba(0,240,255,0.08);margin-top:8px;}
+    .energy-fill{height:100%;width:0%;background:var(--neon-cyan);box-shadow:0 0 8px var(--neon-cyan);transition:width 0.1s linear;}
+    /* ── Reconnect overlay ── */
+    .reconnect-overlay{
+      position:fixed;inset:0;background:rgba(5,6,8,0.88);z-index:100;
+      display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;
     }
-    button:hover { background: rgba(0, 240, 255, 0.1); border-color: var(--neon-cyan); text-shadow: 0 0 5px var(--neon-cyan); }
-    button:active { transform: scale(0.98); }
-    button.primary { border-color: var(--neon-cyan); color: var(--neon-cyan); background: rgba(0,240,255,0.05); }
-    button.primary:hover { background: var(--neon-cyan); color: #000; }
-    button.danger { border-color: var(--neon-magenta); color: var(--neon-magenta); }
-    button.danger:hover { background: var(--neon-magenta); color: #000; text-shadow: none; }
-    button.active { background: rgba(0, 240, 255, 0.2); border-color: var(--neon-cyan); color: var(--neon-cyan); }
-    
-    /* Diagnostics Grid */
-    .data-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+    .reconnect-overlay.show{display:flex;}
+    .reconnect-msg{font-family:var(--font-mono);font-size:1rem;color:var(--neon-yellow);text-align:center;}
+    .reconnect-sub{font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);}
+    .spin{
+      width:40px;height:40px;border:2px solid rgba(0,240,255,0.2);
+      border-top:2px solid var(--neon-cyan);border-radius:50%;
+      animation:spin 0.8s linear infinite;
     }
-    .data-item {
-      display: flex;
-      flex-direction: column;
-    }
-    .data-k { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
-    .data-v { font-family: var(--font-mono); font-size: 0.85rem; color: var(--neon-yellow); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
-
-    /* Toggles */
-    .toggle-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .toggle-label { font-family: var(--font-mono); font-size: 0.8rem; }
-    .cyber-switch {
-      position: relative; width: 40px; height: 20px;
-    }
-    .cyber-switch input { display: none; }
-    .cyber-slider {
-      position: absolute; inset: 0; border: 1px solid rgba(0, 240, 255, 0.4);
-      background: rgba(0,0,0,0.5); cursor: pointer; transition: 0.2s;
-    }
-    .cyber-slider::before {
-      content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
-      background: var(--text-muted); transition: 0.2s;
-    }
-    .cyber-switch input:checked + .cyber-slider { border-color: var(--neon-cyan); }
-    .cyber-switch input:checked + .cyber-slider::before {
-      transform: translateX(20px); background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan);
-    }
-
-    /* Terminal Logs */
-    .terminal-logs {
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      color: var(--neon-green);
-      background: rgba(0, 255, 65, 0.05);
-      border: 1px solid rgba(0, 255, 65, 0.2);
-      padding: 10px;
-      height: 120px;
-      overflow-y: auto;
-      clip-path: var(--clip-reverse);
-    }
-    .log-line { margin-bottom: 4px; word-wrap: break-word; }
-    .log-time { color: var(--text-muted); margin-right: 5px; }
-    .log-err { color: var(--neon-magenta); }
-    .log-warn { color: var(--neon-yellow); }
-
-    /* Energy Bar */
-    .energy-bar-wrap { margin-top: auto; padding: 10px; }
-    .energy-label { font-family: var(--font-mono); font-size: 0.7rem; display: flex; justify-content: space-between; margin-bottom: 4px; color: var(--neon-cyan);}
-    .energy-track { width: 100%; height: 6px; background: rgba(0,240,255,0.1); position: relative; overflow: hidden; }
-    .energy-fill { height: 100%; background: var(--neon-cyan); width: 0%; box-shadow: 0 0 10px var(--neon-cyan); transition: width 0.1s linear;}
-
-    /* Utilities */
-    .hidden { display: none !important; }
-    audio { display: none; }
-
-    @media (max-width: 800px) {
-      .core-area { flex-direction: column; }
-      .side-panel { width: 100%; flex: 0 0 auto; }
-      .visualizer-container { min-height: 40vh; }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    /* ── Utils ── */
+    .hidden{display:none!important;}
+    audio{display:none;}
+    @media(max-width:800px){
+      .core{flex-direction:column;}
+      .side{width:100%;flex:0 0 auto;}
+      .viz-wrap{min-height:35vh;}
     }
   </style>
 </head>
 <body>
-  <div class="grid-bg"></div>
-  
-  <div class="hud-wrapper">
-    <header class="header-bar">
-      <div class="brand">
-        <h1>Audio_Sync_LINK</h1>
-        <span>// BY Y4Z.DEV</span>
-      </div>
-      <div class="status-sys">
-        <span id="dot" class="dot"></span>
-        <span id="statusText">SYS.IDLE</span>
-      </div>
-    </header>
+<div class="grid-bg"></div>
 
-    <main class="core-area">
-      
-      <section class="visualizer-container">
-        <canvas id="visualizer"></canvas>
-        <div style="position: absolute; bottom: 10px; left: 15px; font-family: var(--font-mono); font-size: 0.75rem; color: var(--neon-cyan); opacity: 0.6;">
-          > <span id="vizLabel">AWAITING_SIGNAL...</span>
-        </div>
-      </section>
+<!-- Auto-reconnect overlay -->
+<div class="reconnect-overlay" id="reconnectOverlay">
+  <div class="spin"></div>
+  <div class="reconnect-msg">SERVER_OFFLINE</div>
+  <div class="reconnect-sub" id="reconnectSub">Attempting reconnect in <span id="reconnectCountdown">5</span>s...</div>
+</div>
 
-      <aside class="side-panel">
-        
-        <div class="panel-box">
-          <div class="panel-header"><span>[01] Transport</span></div>
-          <div class="btn-group">
-            <button id="connectBtn" class="primary">Initialize</button>
-            <button id="playBtn" class="hidden" style="color:var(--neon-yellow); border-color:var(--neon-yellow);">Force Play</button>
-            <button id="stopBtn" class="danger">Terminate</button>
-          </div>
-        </div>
+<div class="hud">
+  <header class="header-bar">
+    <div class="brand">
+      <h1>Audio_Sync_LINK</h1>
+      <span>// BY Y4Z.DEV</span>
+    </div>
+    <div class="header-right">
+      <span class="role-badge" id="roleBadge">RECEIVER</span>
+      <span class="sys-dot" id="sysDot"></span>
+      <span id="sysText" style="font-family:var(--font-mono);font-size:0.8rem;">IDLE</span>
+    </div>
+  </header>
 
-        <div class="panel-box">
-          <div class="panel-header"><span>[02] Sys_Readout</span> <span id="energyValue">0%</span></div>
-          <div class="data-grid">
-            <div class="data-item"><span class="data-k">NET.STATE</span><span class="data-v" id="transportVal">OFFLINE</span></div>
-            <div class="data-item"><span class="data-k">ICE.PROTO</span><span class="data-v" id="iceVal">STANDBY</span></div>
-            <div class="data-item"><span class="data-k">MEDIA.TRK</span><span class="data-v" id="trackVal">NULL</span></div>
-            <div class="data-item"><span class="data-k">PLAYBACK</span><span class="data-v" id="playbackVal">HALTED</span></div>
-          </div>
-          
-          <div class="energy-bar-wrap">
-            <div class="energy-track"><div class="energy-fill" id="energyFill"></div></div>
-          </div>
-        </div>
+  <main class="core">
+    <section class="viz-wrap">
+      <canvas id="viz"></canvas>
+      <div class="viz-label">› <span id="vizLabel">AWAITING_SIGNAL</span></div>
+    </section>
 
-        <div class="panel-box">
-          <div class="panel-header"><span>[03] Config</span></div>
-          
-          <div class="toggle-row">
-            <span class="toggle-label">MODE: SPECTRUM</span>
-            <div class="btn-group" style="width: auto;">
-              <button id="modeSpectrumBtn" class="active" style="min-width: 40px; padding: 4px;">SPC</button>
-              <button id="modeWaveBtn" style="min-width: 40px; padding: 4px;">WAV</button>
-            </div>
-          </div>
+    <aside class="side" id="sidePanel">
+      <!-- injected by JS based on role -->
+    </aside>
+  </main>
+</div>
 
-          <div class="toggle-row">
-            <span class="toggle-label">SYS.WAKELOCK</span>
-            <label class="cyber-switch">
-              <input type="checkbox" id="wakeLockToggle">
-              <span class="cyber-slider"></span>
-            </label>
-          </div>
-          <div class="data-v" id="heroWake" style="font-size:0.65rem; text-align:right; margin-bottom:8px;">INACTIVE</div>
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// ROLE DETECTION
+// ─────────────────────────────────────────────────────────────────────────────
+const ROLE = new URLSearchParams(location.search).get('role') === 'sender' ? 'sender' : 'receiver';
+document.getElementById('roleBadge').textContent = ROLE.toUpperCase();
+document.getElementById('roleBadge').className = 'role-badge ' + ROLE;
+document.title = ROLE === 'sender' ? 'Y4Z // SENDER' : 'Y4Z // RECEIVER';
 
-          <div class="toggle-row">
-            <span class="toggle-label">PWR.SAVE</span>
-            <label class="cyber-switch">
-              <input type="checkbox" id="powerToggle">
-              <span class="cyber-slider"></span>
-            </label>
-          </div>
-          
-          <div class="toggle-row" style="margin-top: 10px;">
-             <button id="fullscreenBtn" style="width:100%;">TOGGLE_FULLSCREEN</button>
-          </div>
-        </div>
+// ─────────────────────────────────────────────────────────────────────────────
+// CANVAS VISUALIZER
+// ─────────────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('viz');
+const ctx    = canvas.getContext('2d');
+let analyserNodes = []; // one per connected stream
+let vizMode = 'spectrum';
+let animId  = null;
 
-        <div class="terminal-logs" id="logs"></div>
+function resizeCanvas() {
+  const r = canvas.parentNode.getBoundingClientRect();
+  const d = window.devicePixelRatio || 1;
+  canvas.width  = r.width  * d;
+  canvas.height = r.height * d;
+  ctx.setTransform(d,0,0,d,0,0);
+}
+window.addEventListener('resize', resizeCanvas);
 
-      </aside>
-    </main>
-    <audio id="audioPlayer" playsinline></audio>
-  </div>
+function vizLoop() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  // grid
+  ctx.strokeStyle='rgba(0,240,255,0.05)';ctx.lineWidth=1;ctx.beginPath();
+  for(let x=0;x<w;x+=40){ctx.moveTo(x,0);ctx.lineTo(x,h);}
+  for(let y=0;y<h;y+=40){ctx.moveTo(0,y);ctx.lineTo(w,y);}
+  ctx.stroke();
 
-  <script>
-    // Elements
-    const canvas = document.getElementById('visualizer');
-    const ctx = canvas.getContext('2d');
-    const logs = document.getElementById('logs');
-    
-    const connectBtn = document.getElementById('connectBtn');
-    const playBtn = document.getElementById('playBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    
-    const modeSpectrumBtn = document.getElementById('modeSpectrumBtn');
-    const modeWaveBtn = document.getElementById('modeWaveBtn');
-    const wakeLockToggle = document.getElementById('wakeLockToggle');
-    const powerToggle = document.getElementById('powerToggle');
-    
-    const elements = {
-      dot: document.getElementById('dot'),
-      statusText: document.getElementById('statusText'),
-      vizLabel: document.getElementById('vizLabel'),
-      transportVal: document.getElementById('transportVal'),
-      iceVal: document.getElementById('iceVal'),
-      trackVal: document.getElementById('trackVal'),
-      playbackVal: document.getElementById('playbackVal'),
-      heroWake: document.getElementById('heroWake'),
-      energyFill: document.getElementById('energyFill'),
-      energyValue: document.getElementById('energyValue'),
-      audioPlayer: document.getElementById('audioPlayer')
-    };
-
-    // State
-    const state = {
-      vizMode: 'spectrum',
-      powerSave: false,
-      pageVisible: true,
-      isMobile: false
-    };
-
-    let pc = null, wakeLock = null, audioCtx = null, analyser = null, sourceNode = null, animationId = null;
-
-    // Utils
-    function log(msg, type = '') {
-      const line = document.createElement('div');
-      line.className = `log-line ${type === 'err' ? 'log-err' : type === 'warn' ? 'log-warn' : ''}`;
-      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-      line.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
-      logs.appendChild(line);
-      logs.scrollTop = logs.scrollHeight;
-    }
-
-    function setSysState(text, level = 'idle') {
-      elements.statusText.textContent = `SYS.${text}`;
-      elements.dot.className = 'dot ' + level;
-    }
-
-    function updateEnergy(percent) {
-      const v = Math.min(100, Math.max(0, Math.round(percent)));
-      elements.energyFill.style.width = `${v}%`;
-      elements.energyValue.textContent = `${v}%`;
-    }
-
-    // WakeLock API - Mobile safe implementation
-    async function handleWakeLock() {
-      if (!wakeLockToggle.checked) {
-        if (wakeLock) {
-            try { await wakeLock.release(); } catch(e) {}
-            wakeLock = null;
+  if(analyserNodes.length === 0){
+    ctx.fillStyle='rgba(0,240,255,0.15)';
+    ctx.fillRect(0,h/2-1,w,2);
+  } else {
+    const colors=['#00f0ff','#ff003c','#fcee0a','#00ff41','#ff8800','#bf00ff'];
+    analyserNodes.forEach((an,idx)=>{
+      const col = colors[idx % colors.length];
+      if(vizMode==='spectrum'){
+        const data=new Uint8Array(an.frequencyBinCount);
+        an.getByteFrequencyData(data);
+        const bars=60, step=Math.floor(data.length/bars), bw=w/bars;
+        const cy=h/2;
+        ctx.fillStyle='rgba(0,240,255,0.3)';ctx.fillRect(0,cy-1,w,2);
+        for(let i=0;i<bars;i++){
+          let s=0;for(let j=0;j<step;j++)s+=data[i*step+j]||0;
+          const norm=Math.pow(s/step/255,1.5);
+          const bh=Math.max(2,norm*(h*0.4));
+          ctx.fillStyle=col;ctx.shadowBlur=8*norm;ctx.shadowColor=col;
+          ctx.fillRect(i*bw+1+(idx*2),cy-bh,bw-2,bh);
+          ctx.fillRect(i*bw+1+(idx*2),cy,bw-2,bh);
         }
-        elements.heroWake.textContent = 'INACTIVE';
-        log('Wakelock released.', 'warn');
-        return;
-      }
-
-      if (!('wakeLock' in navigator)) {
-        elements.heroWake.textContent = 'UNSUPPORTED (HTTPS/API REQ)';
-        elements.heroWake.style.color = 'var(--neon-magenta)';
-        wakeLockToggle.checked = false;
-        log('WakeLock API not supported by this browser.', 'err');
-        return;
-      }
-
-      try {
-        wakeLock = await navigator.wakeLock.request('screen');
-        elements.heroWake.textContent = 'ACTIVE';
-        elements.heroWake.style.color = 'var(--neon-cyan)';
-        log('Wakelock acquired.', 'ok');
-        
-        wakeLock.addEventListener('release', () => {
-          if(wakeLockToggle.checked) {
-              elements.heroWake.textContent = 'DROPPED_BY_SYS';
-              log('System forced wakelock release.', 'warn');
-          }
-        });
-      } catch (err) {
-        elements.heroWake.textContent = 'DENIED';
-        wakeLockToggle.checked = false;
-        log(`Wakelock denied: ${err.message}`, 'err');
-      }
-    }
-
-    // Canvas / Render Logic
-    function resize() {
-      const rect = canvas.parentNode.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-
-    function drawGrid(w, h) {
-      if(state.powerSave) return;
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.05)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for(let x=0; x<w; x+=40) { ctx.moveTo(x,0); ctx.lineTo(x,h); }
-      for(let y=0; y<h; y+=40) { ctx.moveTo(0,y); ctx.lineTo(w,y); }
-      ctx.stroke();
-    }
-
-    function renderCyberSpectrum(w, h, data) {
-      const bars = state.powerSave ? 40 : 80;
-      const step = Math.floor(data.length / bars);
-      const barW = w / bars;
-      const centerY = h / 2;
-      let total = 0;
-
-      // Draw center laser
-      ctx.fillStyle = 'rgba(0, 240, 255, 0.5)';
-      ctx.fillRect(0, centerY - 1, w, 2);
-
-      for (let i = 0; i < bars; i++) {
-        let sum = 0;
-        for (let j = 0; j < step; j++) sum += data[i * step + j] || 0;
-        const raw = sum / step;
-        total += raw;
-        
-        const norm = Math.pow(raw / 255, 1.5);
-        const barH = Math.max(2, norm * (h * 0.45));
-        const x = i * barW;
-
-        ctx.fillStyle = `hsl(183, 100%, ${Math.min(100, 30 + norm*50)}%)`;
-        if(!state.powerSave) {
-          ctx.shadowBlur = 10 * norm;
-          ctx.shadowColor = '#00f0ff';
-        }
-        
-        // Mirror Y-axis
-        ctx.fillRect(x + 1, centerY - barH, barW - 2, barH);
-        ctx.fillRect(x + 1, centerY, barW - 2, barH);
-        ctx.shadowBlur = 0;
-      }
-      updateEnergy((total / bars / 255) * 100);
-    }
-
-    function renderCyberWave(w, h, data) {
-      ctx.beginPath();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#ff003c';
-      if(!state.powerSave) { ctx.shadowBlur = 15; ctx.shadowColor = '#ff003c'; }
-
-      let totalAmp = 0;
-      for (let i = 0; i < data.length; i++) {
-        const x = (i / (data.length - 1)) * w;
-        const norm = data[i] / 128.0;
-        const y = (norm * h/2) * 0.8 + (h*0.1);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        totalAmp += Math.abs(data[i] - 128);
-      }
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Ghost trail (cyan offset)
-      if(!state.powerSave) {
-          ctx.beginPath();
-          ctx.strokeStyle = 'rgba(0, 240, 255, 0.5)';
-          for (let i = 0; i < data.length; i++) {
-            const x = (i / (data.length - 1)) * w;
-            const norm = data[i] / 128.0;
-            const y = (norm * h/2) * 0.8 + (h*0.1);
-            if (i === 0) ctx.moveTo(x-4, y); else ctx.lineTo(x-4, y);
-          }
-          ctx.stroke();
-      }
-
-      updateEnergy((totalAmp / data.length / 128) * 100);
-    }
-
-    function loop() {
-      if (!state.pageVisible) return;
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      ctx.clearRect(0, 0, w, h);
-      drawGrid(w, h);
-
-      if (analyser && elements.playbackVal.textContent === 'ACTIVE') {
-        if (state.vizMode === 'spectrum') {
-          const data = new Uint8Array(analyser.frequencyBinCount);
-          analyser.getByteFrequencyData(data);
-          renderCyberSpectrum(w, h, data);
-        } else {
-          const data = new Uint8Array(analyser.fftSize);
-          analyser.getByteTimeDomainData(data);
-          renderCyberWave(w, h, data);
-        }
+        ctx.shadowBlur=0;
       } else {
-         // Standby line
-         ctx.fillStyle = 'rgba(0,240,255,0.2)';
-         ctx.fillRect(0, h/2 - 1, w, 2);
-         updateEnergy(0);
+        const data=new Uint8Array(an.fftSize);
+        an.getByteTimeDomainData(data);
+        ctx.beginPath();ctx.lineWidth=1.5;ctx.strokeStyle=col;
+        ctx.shadowBlur=10;ctx.shadowColor=col;
+        for(let i=0;i<data.length;i++){
+          const x=(i/(data.length-1))*w;
+          const y=(data[i]/128)*h*0.4+h*(0.1+idx*0.15);
+          i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+        }
+        ctx.stroke();ctx.shadowBlur=0;
       }
-      animationId = requestAnimationFrame(loop);
+    });
+  }
+  animId=requestAnimationFrame(vizLoop);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOGGER
+// ─────────────────────────────────────────────────────────────────────────────
+let logEl = null;
+function log(msg, type='') {
+  if(!logEl) return;
+  const d=document.createElement('div');
+  d.className='lg'+(type==='err'?' le':type==='warn'?' lw':'');
+  const t=new Date().toLocaleTimeString('en-US',{hour12:false});
+  d.innerHTML=`<span class="lt">[${t}]</span>${msg}`;
+  logEl.appendChild(d);
+  logEl.scrollTop=logEl.scrollHeight;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SYS STATE
+// ─────────────────────────────────────────────────────────────────────────────
+const sysDot  = document.getElementById('sysDot');
+const sysText = document.getElementById('sysText');
+function setSys(text, level='idle') {
+  sysText.textContent = text;
+  sysDot.className = 'sys-dot ' + (level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVER HEALTH + AUTO-RECONNECT
+// ─────────────────────────────────────────────────────────────────────────────
+const overlay      = document.getElementById('reconnectOverlay');
+const countdownEl  = document.getElementById('reconnectCountdown');
+let serverWasDown  = false;
+let reconnectTimer = null;
+let autoReconnectFn = null; // set by role init
+
+async function checkServer() {
+  try {
+    await fetch('/streams', { signal: AbortSignal.timeout(3000) });
+    if(serverWasDown) {
+      serverWasDown = false;
+      overlay.classList.remove('show');
+      log('Server back online. Reconnecting...', 'warn');
+      if(autoReconnectFn) autoReconnectFn();
     }
+  } catch {
+    if(!serverWasDown) {
+      serverWasDown = true;
+      overlay.classList.add('show');
+      log('Server unreachable. Auto-reconnect active.', 'err');
+    }
+  }
+}
 
-    // WebRTC Logic
-    async function startConnection() {
-      connectBtn.disabled = true;
-      playBtn.classList.add('hidden');
-      setSysState('CONNECTING', 'warn');
-      elements.transportVal.textContent = 'INIT_HANDSHAKE';
-      elements.iceVal.textContent = 'GATHERING';
-      
-      try {
-        if (pc) pc.close();
-        if(wakeLockToggle.checked) await handleWakeLock();
+function startHealthLoop() {
+  setInterval(checkServer, 5000);
+}
 
-        pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-        
-        pc.oniceconnectionstatechange = () => {
-          elements.iceVal.textContent = pc.iceConnectionState.toUpperCase();
-        };
+function scheduleReconnect(fn, delayMs=2000) {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(fn, delayMs);
+}
 
-        pc.onconnectionstatechange = () => {
-          const cs = pc.connectionState.toUpperCase();
-          elements.transportVal.textContent = cs;
-          if (cs === 'CONNECTED') { setSysState('ONLINE', 'live'); log('P2P Link established.', 'ok'); }
-          else if (cs === 'FAILED' || cs === 'DISCONNECTED') { setSysState('LINK_FAIL', 'err'); log('Link lost.', 'err'); }
-        };
+function countdownOverlay(seconds, fn) {
+  let s = seconds;
+  countdownEl.textContent = s;
+  const iv = setInterval(()=>{
+    s--; countdownEl.textContent = s;
+    if(s<=0){ clearInterval(iv); fn(); }
+  }, 1000);
+}
 
-        pc.addTransceiver('audio', { direction: 'recvonly' });
+// ─────────────────────────────────────────────────────────────────────────────
+// WEBRTC HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+function makePC() {
+  return new RTCPeerConnection({
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+  });
+}
 
-        pc.ontrack = (event) => {
-          const stream = event.streams[0];
-          elements.audioPlayer.srcObject = stream;
-          elements.trackVal.textContent = 'A_TRACK_RCV';
-          
-          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          if (audioCtx.state === 'suspended') audioCtx.resume();
-          if (sourceNode) { try{ sourceNode.disconnect(); }catch(e){} }
-          
-          sourceNode = audioCtx.createMediaStreamSource(stream);
-          analyser = audioCtx.createAnalyser();
-          analyser.fftSize = state.powerSave ? 128 : 256;
-          analyser.smoothingTimeConstant = 0.8;
-          sourceNode.connect(analyser);
+async function sendOffer(endpoint, body) {
+  const res = await fetch(endpoint, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8000)
+  });
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
 
-          elements.audioPlayer.play().then(() => {
-            elements.playbackVal.textContent = 'ACTIVE';
-            elements.vizLabel.textContent = `RX_FREQ_ANALYSIS // ${state.vizMode.toUpperCase()}`;
-            log('Audio stream active.', 'ok');
-          }).catch(e => {
-            elements.playbackVal.textContent = 'AUTOPLAY_BLOCK';
-            playBtn.classList.remove('hidden');
-            log('Autoplay blocked. Manual override required.', 'warn');
-          });
-        };
+// ─────────────────────────────────────────────────────────────────────────────
+// RECEIVER ROLE
+// ─────────────────────────────────────────────────────────────────────────────
+function initReceiver() {
+  const side = document.getElementById('sidePanel');
+  side.innerHTML = `
+    <div class="panel">
+      <div class="panel-hdr"><span>[01] Streams</span><span id="streamCount">0 found</span></div>
+      <div class="stream-list" id="streamList"><div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">Fetching streams...</div></div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="primary" id="connectBtn">Connect Selected</button>
+        <button id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span>[02] Status</span></div>
+      <div class="data-grid">
+        <div><div class="dk">NET.STATE</div><div class="dv" id="netState">OFFLINE</div></div>
+        <div><div class="dk">ICE</div><div class="dv" id="iceState">STANDBY</div></div>
+        <div><div class="dk">TRACKS</div><div class="dv" id="trackCount">0</div></div>
+        <div><div class="dk">PLAYBACK</div><div class="dv" id="playbackState">HALTED</div></div>
+      </div>
+      <div class="energy-track"><div class="energy-fill" id="energyFill"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span>[03] Active Streams</span></div>
+      <div id="activeStreamsList" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+    <div class="terminal" id="logBox"></div>
+  `;
+  logEl = document.getElementById('logBox');
 
-        log('Generating local SDP...');
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
+  let pc = null;
+  let audioCtx  = null;
+  let activeStreams = {}; // name → { audio, sourceNode, analyser }
+  let selectedStreams = new Set();
+  let backoff = 2000;
+  let isConnected = false;
 
-        log('Transmitting to relay...');
-        const res = await fetch('/offer', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(pc.localDescription)
+  async function fetchStreams() {
+    try {
+      const r = await fetch('/streams', { signal: AbortSignal.timeout(3000) });
+      const data = await r.json();
+      return data.streams || [];
+    } catch { return []; }
+  }
+
+  async function renderStreamList() {
+    const streams = await fetchStreams();
+    const listEl = document.getElementById('streamList');
+    document.getElementById('streamCount').textContent = streams.length + ' found';
+    if(streams.length === 0) {
+      listEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No streams available.</div>';
+      return;
+    }
+    listEl.innerHTML = '';
+    streams.forEach(name => {
+      const card = document.createElement('div');
+      card.className = 'stream-card';
+      const isActive = !!activeStreams[name];
+      card.innerHTML = `
+        <input type="checkbox" id="chk_${name}" ${selectedStreams.has(name)||isActive?'checked':''}>
+        <span class="stream-name">${name}</span>
+        <span class="stream-state ${isActive?'live':''}">${ isActive?'● LIVE':'○ IDLE'}</span>
+      `;
+      card.querySelector('input').addEventListener('change', e => {
+        if(e.target.checked) selectedStreams.add(name);
+        else selectedStreams.delete(name);
+      });
+      if(selectedStreams.has(name)||isActive) selectedStreams.add(name);
+      listEl.appendChild(card);
+    });
+  }
+
+  async function connect() {
+    if(selectedStreams.size === 0) {
+      // Auto-select all if none chosen
+      const streams = await fetchStreams();
+      streams.forEach(s => selectedStreams.add(s));
+    }
+    if(selectedStreams.size === 0) { log('No streams to connect to.','warn'); return; }
+
+    setSys('CONNECTING','warn');
+    document.getElementById('netState').textContent = 'INIT';
+
+    try {
+      if(pc) { pc.close(); pc = null; }
+
+      pc = makePC();
+
+      pc.oniceconnectionstatechange = () => {
+        document.getElementById('iceState').textContent = pc.iceConnectionState.toUpperCase();
+      };
+
+      pc.onconnectionstatechange = () => {
+        const s = pc.connectionState;
+        document.getElementById('netState').textContent = s.toUpperCase();
+        if(s === 'connected') {
+          setSys('ONLINE','live'); isConnected=true; backoff=2000;
+          log('Connected to ' + [...selectedStreams].join(', '));
+        }
+        if(s === 'failed' || s === 'disconnected') {
+          setSys('LINK_FAIL','err'); isConnected=false;
+          log('Link lost. Reconnecting in ' + (backoff/1000) + 's...', 'err');
+          scheduleReconnect(connect, backoff);
+          backoff = Math.min(backoff * 2, 30000);
+        }
+      };
+
+      let trackIdx = 0;
+      const activeEl = document.getElementById('activeStreamsList');
+
+      pc.ontrack = (event) => {
+        const stream = event.streams[0];
+        const trackNames = [...selectedStreams];
+        const name = trackNames[trackIdx] || 'stream_' + trackIdx;
+        trackIdx++;
+
+        document.getElementById('trackCount').textContent = trackIdx;
+
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+
+        const audio = document.createElement('audio');
+        audio.srcObject = stream;
+        audio.playsinline = true;
+        document.body.appendChild(audio);
+
+        const srcNode  = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.8;
+        srcNode.connect(analyser);
+        analyserNodes.push(analyser);
+
+        // per-stream gain node for volume
+        const gain = audioCtx.createGain();
+        srcNode.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        activeStreams[name] = { audio, srcNode, analyser, gain };
+
+        audio.play().then(() => {
+          document.getElementById('playbackState').textContent = 'ACTIVE';
+          document.getElementById('vizLabel').textContent = 'RX // ' + [...Object.keys(activeStreams)].join(' + ');
+          log('Track live: ' + name);
+        }).catch(() => {
+          log('Autoplay blocked — tap Force Play','warn');
         });
 
-        if (!res.ok) throw new Error(`ERR_CODE: ${res.status}`);
-        const answer = await res.json();
-        await pc.setRemoteDescription(answer);
-        log('Remote SDP accepted.', 'ok');
+        // Render stream card in active list
+        const card = document.createElement('div');
+        card.id = 'active_' + name;
+        card.className = 'stream-card';
+        card.innerHTML = `
+          <span class="stream-name">${name}</span>
+          <span class="stream-state live">● LIVE</span>
+        `;
+        const volRow = document.createElement('div');
+        volRow.className = 'vol-row';
+        volRow.innerHTML = `<input type="range" min="0" max="1" step="0.01" value="1"><span class="vol-label">100%</span>`;
+        volRow.querySelector('input').addEventListener('input', e => {
+          gain.gain.value = parseFloat(e.target.value);
+          volRow.querySelector('.vol-label').textContent = Math.round(e.target.value*100)+'%';
+        });
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText='display:flex;flex-direction:column;gap:4px;width:100%;';
+        wrapper.appendChild(card);
+        wrapper.appendChild(volRow);
+        activeEl.appendChild(wrapper);
+      };
 
-      } catch (err) {
-        setSysState('FAIL', 'err');
-        elements.transportVal.textContent = 'ERROR';
-        log(`Handshake failed: ${err.message}`, 'err');
-      } finally {
-        connectBtn.disabled = false;
+      [...selectedStreams].forEach(() => pc.addTransceiver('audio', { direction: 'recvonly' }));
+
+      const offer  = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      log('Sending offer for: ' + [...selectedStreams].join(', '));
+      const answer = await sendOffer('/receiver/offer', {
+        streams: [...selectedStreams],
+        sdp: pc.localDescription
+      });
+      await pc.setRemoteDescription(answer);
+      log('Remote SDP accepted.');
+
+    } catch(err) {
+      setSys('FAIL','err');
+      log('Connection failed: ' + err.message, 'err');
+      scheduleReconnect(connect, backoff);
+      backoff = Math.min(backoff * 2, 30000);
+    }
+  }
+
+  // Auto-reconnect hook
+  autoReconnectFn = () => { backoff=2000; connect(); };
+
+  document.getElementById('connectBtn').addEventListener('click', ()=>{ backoff=2000; connect(); });
+  document.getElementById('refreshBtn').addEventListener('click', renderStreamList);
+
+  // Auto-refresh stream list every 5s
+  renderStreamList();
+  setInterval(renderStreamList, 5000);
+
+  log('RECEIVER INIT. Awaiting command.');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SENDER ROLE
+// ─────────────────────────────────────────────────────────────────────────────
+function initSender() {
+  const side = document.getElementById('sidePanel');
+  side.innerHTML = `
+    <div class="panel">
+      <div class="panel-hdr"><span>[01] New Stream</span></div>
+      <div class="field">
+        <label>Stream Name</label>
+        <input type="text" id="streamName" placeholder="e.g. game, mic, music" maxlength="32">
+      </div>
+      <div class="field">
+        <label>Source</label>
+        <select id="sourceType">
+          <option value="system">System Audio (server-side cpal)</option>
+          <option value="browser">Browser Capture (getUserMedia)</option>
+          <option value="display">Display Audio (getDisplayMedia)</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="startStreamBtn">Start Stream</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span>[02] Active Streams</span><span id="senderStreamCount">0</span></div>
+      <div id="senderStreamList" class="stream-list">
+        <div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No active streams.</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span>[03] Status</span></div>
+      <div class="data-grid">
+        <div><div class="dk">STREAMS</div><div class="dv" id="senderNetState">0 ACTIVE</div></div>
+        <div><div class="dk">SERVER</div><div class="dv" id="senderSrvState">ONLINE</div></div>
+      </div>
+    </div>
+    <div class="terminal" id="logBox"></div>
+  `;
+  logEl = document.getElementById('logBox');
+
+  const activeConnections = {}; // name → { pc, stream }
+  let backoff = 2000;
+
+  function updateSenderCount() {
+    const n = Object.keys(activeConnections).length;
+    document.getElementById('senderStreamCount').textContent = n;
+    document.getElementById('senderNetState').textContent = n + ' ACTIVE';
+  }
+
+  function renderSenderCard(name) {
+    const list = document.getElementById('senderStreamList');
+    const existing = list.querySelector('.no-streams');
+    if(existing) existing.remove();
+
+    const card = document.createElement('div');
+    card.id   = 'scard_' + name;
+    card.className = 'sender-card';
+    card.innerHTML = `
+      <div class="sender-card-row">
+        <span style="font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-orange);flex:1;">● ${name}</span>
+        <button class="danger" style="flex:0;min-width:60px;padding:3px 6px;font-size:0.7rem;" onclick="stopStream('${name}')">Stop</button>
+      </div>
+      <div class="vu-bar"><div class="vu-fill" id="vu_${name}"></div></div>
+    `;
+    list.appendChild(card);
+  }
+
+  window.stopStream = function(name) {
+    const conn = activeConnections[name];
+    if(conn) {
+      if(conn.pc) conn.pc.close();
+      if(conn.stream) conn.stream.getTracks().forEach(t=>t.stop());
+      delete activeConnections[name];
+    }
+    fetch('/stream/' + encodeURIComponent(name), { method: 'DELETE' }).catch(()=>{});
+    const card = document.getElementById('scard_' + name);
+    if(card) card.remove();
+    updateSenderCount();
+    log('Stream stopped: ' + name, 'warn');
+    analyserNodes = analyserNodes.filter((_,i)=>i!==0); // rough cleanup
+  };
+
+  async function startStream() {
+    const name   = document.getElementById('streamName').value.trim();
+    const source = document.getElementById('sourceType').value;
+
+    if(!name) { log('Enter a stream name first.','warn'); return; }
+    if(activeConnections[name]) { log('Stream "'+name+'" already running.','warn'); return; }
+
+    setSys('BROADCASTING','live');
+    log('Starting stream: ' + name + ' (source=' + source + ')');
+
+    if(source === 'system') {
+      // Server-side capture — just register with server, no browser PC needed
+      try {
+        const dummyPc = makePC();
+        dummyPc.addTransceiver('audio', { direction: 'sendrecv' });
+        const offer = await dummyPc.createOffer();
+        await dummyPc.setLocalDescription(offer);
+        await sendOffer('/sender/offer', { name, source: 'system', sdp: dummyPc.localDescription });
+        activeConnections[name] = { pc: dummyPc, stream: null };
+        renderSenderCard(name);
+        updateSenderCount();
+        log('System capture stream registered: ' + name);
+      } catch(err) {
+        log('Failed to register system stream: ' + err.message, 'err');
       }
+      return;
     }
 
-    function stopConnection() {
-      if(pc) { pc.close(); pc = null; }
-      if(elements.audioPlayer.srcObject) {
-        elements.audioPlayer.srcObject.getTracks().forEach(t => t.stop());
-        elements.audioPlayer.srcObject = null;
+    // Browser or display capture
+    let stream;
+    try {
+      if(source === 'browser') {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } else {
+        stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+        stream.getVideoTracks().forEach(t => t.stop()); // drop video
       }
-      setSysState('IDLE', 'idle');
-      elements.transportVal.textContent = 'OFFLINE';
-      elements.iceVal.textContent = 'STANDBY';
-      elements.trackVal.textContent = 'NULL';
-      elements.playbackVal.textContent = 'HALTED';
-      elements.vizLabel.textContent = 'AWAITING_SIGNAL...';
-      log('Connection manually terminated.', 'warn');
+    } catch(err) {
+      log('Media capture failed: ' + err.message, 'err');
+      return;
     }
 
-    // Listeners
-    connectBtn.addEventListener('click', startConnection);
-    stopBtn.addEventListener('click', stopConnection);
-    playBtn.addEventListener('click', () => {
-      elements.audioPlayer.play();
-      audioCtx?.resume();
-      elements.playbackVal.textContent = 'ACTIVE';
-      playBtn.classList.add('hidden');
-      log('Manual override applied.', 'ok');
-    });
+    try {
+      const pc2 = makePC();
+      stream.getAudioTracks().forEach(t => pc2.addTrack(t, stream));
 
-    modeSpectrumBtn.addEventListener('click', () => {
-      state.vizMode = 'spectrum';
-      modeSpectrumBtn.classList.add('active');
-      modeWaveBtn.classList.remove('active');
-      if(elements.playbackVal.textContent === 'ACTIVE') elements.vizLabel.textContent = 'RX_FREQ_ANALYSIS // SPECTRUM';
-    });
-    modeWaveBtn.addEventListener('click', () => {
-      state.vizMode = 'wave';
-      modeWaveBtn.classList.add('active');
-      modeSpectrumBtn.classList.remove('active');
-      if(elements.playbackVal.textContent === 'ACTIVE') elements.vizLabel.textContent = 'RX_FREQ_ANALYSIS // WAVEFORM';
-    });
+      // VU meter for browser stream
+      const audioCtxS = new (window.AudioContext || window.webkitAudioContext)();
+      const src2 = audioCtxS.createMediaStreamSource(stream);
+      const an2  = audioCtxS.createAnalyser();
+      an2.fftSize = 256;
+      src2.connect(an2);
+      analyserNodes.push(an2);
+      const vuEl = null; // filled after card renders
 
-    wakeLockToggle.addEventListener('change', handleWakeLock);
-    
-    powerToggle.addEventListener('change', (e) => {
-      state.powerSave = e.target.checked;
-      if(analyser) analyser.fftSize = state.powerSave ? 128 : 256;
-      log(`PWR.SAVE = ${state.powerSave ? 'ON' : 'OFF'}`);
-    });
+      pc2.onconnectionstatechange = () => {
+        if(pc2.connectionState==='failed'||pc2.connectionState==='disconnected') {
+          log('Sender PC lost for ' + name + '. Reconnecting...','warn');
+          scheduleReconnect(()=>{ delete activeConnections[name]; startStream(); }, backoff);
+          backoff = Math.min(backoff*2, 30000);
+        }
+        if(pc2.connectionState==='connected') { backoff=2000; }
+      };
 
-    fullscreenBtn.addEventListener('click', () => {
-      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-      else document.exitFullscreen();
-    });
+      const offer = await pc2.createOffer();
+      await pc2.setLocalDescription(offer);
+      const answer = await sendOffer('/sender/offer', { name, source, sdp: pc2.localDescription });
+      await pc2.setRemoteDescription(answer);
 
-    window.addEventListener('resize', resize);
-    document.addEventListener('visibilitychange', () => {
-      state.pageVisible = document.visibilityState === 'visible';
-      if(state.pageVisible && wakeLockToggle.checked) handleWakeLock();
-    });
+      activeConnections[name] = { pc: pc2, stream };
+      renderSenderCard(name);
+      updateSenderCount();
+      log('Stream live: ' + name);
 
-    // Boot
-    log('CYBER_SYS V2 BOOT SEQUENCE INITIATED...');
-    log('AWAITING USER COMMAND.');
-    resize();
-    requestAnimationFrame(loop);
+      // VU animation
+      function vuTick() {
+        if(!activeConnections[name]) return;
+        const data = new Uint8Array(an2.frequencyBinCount);
+        an2.getByteFrequencyData(data);
+        const avg = data.reduce((a,b)=>a+b,0)/data.length;
+        const vuFill = document.getElementById('vu_'+name);
+        if(vuFill) vuFill.style.width = Math.min(100, avg/255*100*2.5)+'%';
+        requestAnimationFrame(vuTick);
+      }
+      vuTick();
 
-  </script>
+    } catch(err) {
+      log('Stream start failed: ' + err.message, 'err');
+    }
+  }
+
+  autoReconnectFn = () => {
+    document.getElementById('senderSrvState').textContent = 'ONLINE';
+    log('Server back online.', 'warn');
+  };
+
+  document.getElementById('startStreamBtn').addEventListener('click', startStream);
+  log('SENDER INIT. Ready to broadcast.');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────────────────────────────────
+resizeCanvas();
+requestAnimationFrame(vizLoop);
+
+if(ROLE === 'receiver') initReceiver();
+else initSender();
+
+startHealthLoop();
+</script>
 </body>
 </html>
