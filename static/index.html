@@ -204,7 +204,6 @@ function connectWs() {
   ws.onopen = () => {
     document.getElementById('wsState').textContent = 'CONNECTED';
     log('WS connected. Live stream updates active.');
-    // On reconnect, refresh stream list from server
     refreshStreams();
   };
   ws.onclose = () => {
@@ -222,6 +221,15 @@ function connectWs() {
 
 function handleWsEvent(msg) {
   switch (msg.type) {
+    case 'snapshot':
+      // Populate stream list from full snapshot on WS connect
+      if (Array.isArray(msg.streams)) {
+        msg.streams.forEach(n => addStreamCard(n, false));
+        document.getElementById('streamCount').textContent = document.getElementById('streamList').querySelectorAll('.stream-card').length;
+        const ph = document.getElementById('noStreams');
+        if (msg.streams.length > 0 && ph) ph.remove();
+      }
+      break;
     case 'stream_added':
       log('Stream available: ' + msg.name);
       addStreamCard(msg.name, false);
@@ -231,13 +239,11 @@ function handleWsEvent(msg) {
       removeStreamCard(msg.name);
       break;
     case 'set_volume':
-      // Manager sent a volume command targeting this device
       if (msg.device_id === deviceId) {
-        applyRemoteVolume(msg.stream_name, msg.volume);
+        applyRemoteVolume(msg.stream, msg.volume);
       }
       break;
     case 'route_changed':
-      // Manager assigned/unassigned a stream to this speaker
       if (msg.speaker_id === deviceId) {
         if (msg.connected) {
           log('[Manager] Assigned stream: ' + msg.source, 'warn');
@@ -284,9 +290,11 @@ async function refreshStreams() {
   try {
     const res = await fetch('/streams', { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return;
-    const names = await res.json();
+    const data = await res.json();
+    // /streams returns { streams: [...] }
+    const names = Array.isArray(data) ? data : (data.streams || []);
     names.forEach(n => addStreamCard(n, false));
-    document.getElementById('streamCount').textContent = names.length;
+    document.getElementById('streamCount').textContent = document.getElementById('streamList').querySelectorAll('.stream-card').length;
     const ph = document.getElementById('noStreams');
     if (names.length > 0 && ph) ph.remove();
   } catch {}
@@ -369,7 +377,6 @@ window.toggleSubscribe = async function(name) {
   const btn = document.getElementById('subbtn_' + name);
   if (btn) btn.textContent = 'CONN...';
   try {
-    const jit = jitterMs[name] || 40;
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     peerConns[name] = pc;
 
@@ -377,10 +384,15 @@ window.toggleSubscribe = async function(name) {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
+    // FIX: server ReceiverOfferRequest expects { streams: Vec<String>, sdp }
+    // Previously sent { name, jitter_buffer_ms, sdp } which caused HTTP 422
     const res = await fetch('/receiver/offer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, jitter_buffer_ms: jit, sdp: pc.localDescription }),
+      body: JSON.stringify({
+        streams: [name],
+        sdp: pc.localDescription,
+      }),
       signal: AbortSignal.timeout(12000),
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -499,7 +511,7 @@ function setSys(text, level='idle') {
 // ── Init ──────────────────────────────────────────────────────────────────────
 resizeCanvas();
 requestAnimationFrame(vizLoop);
-refreshStreams(); // Initial load from REST; WS will take over after registration
+refreshStreams();
 log('RECEIVER READY. Register as speaker to enable remote control.');
 
 if (deviceId && deviceName) {
