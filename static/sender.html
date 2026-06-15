@@ -70,6 +70,7 @@
     .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
     .dk{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;}
     .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .id-badge{font-family:var(--font-mono);font-size:0.6rem;color:var(--text-muted);padding:2px 6px;border:1px solid rgba(255,136,0,0.15);word-break:break-all;}
     .terminal{font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-green);background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.15);padding:8px;height:110px;overflow-y:auto;clip-path:var(--clip-b);}
     .lg{margin-bottom:3px;word-break:break-all;}
     .lt{color:var(--text-muted);margin-right:4px;}
@@ -88,7 +89,8 @@
     </div>
     <div class="header-right">
       <a class="nav-link" href="/receiver">▶ Receiver</a>
-      <span class="role-badge">SENDER</span>
+      <a class="nav-link" href="/manager">▶ Manager</a>
+      <span class="role-badge">MIC / SOURCE</span>
       <span class="sys-dot" id="sysDot"></span>
       <span id="sysText" style="font-family:var(--font-mono);font-size:0.8rem;">IDLE</span>
     </div>
@@ -99,8 +101,26 @@
       <div class="viz-label">› <span id="vizLabel">TX_STANDBY</span></div>
     </section>
     <aside class="side">
+
+      <!-- [01] Device identity -->
       <div class="panel">
-        <div class="panel-hdr"><span>[01] New Stream</span></div>
+        <div class="panel-hdr"><span>[01] Device Identity</span><span id="devRegState" style="color:var(--text-muted);">UNREGISTERED</span></div>
+        <div class="field">
+          <label>Device Name</label>
+          <input type="text" id="deviceName" placeholder="e.g. Desktop Mic, Game PC" maxlength="40">
+        </div>
+        <div class="data-grid" style="margin-bottom:8px;">
+          <div><div class="dk">DEVICE ID</div><div class="dv id-badge" id="devIdDisplay">—</div></div>
+          <div><div class="dk">STATUS</div><div class="dv" id="devStatusDisplay">OFFLINE</div></div>
+        </div>
+        <div class="btn-row">
+          <button class="primary" id="registerDevBtn">⬆ Register Device</button>
+        </div>
+      </div>
+
+      <!-- [02] New Stream -->
+      <div class="panel">
+        <div class="panel-hdr"><span>[02] New Stream</span></div>
         <div class="field">
           <label>Stream Name</label>
           <input type="text" id="streamName" placeholder="e.g. game, mic, music" maxlength="32">
@@ -117,24 +137,103 @@
           <button class="primary" id="startStreamBtn">▶ Start Stream</button>
         </div>
       </div>
+
+      <!-- [03] Active Streams -->
       <div class="panel">
-        <div class="panel-hdr"><span>[02] Active Streams</span><span id="senderStreamCount">0</span></div>
+        <div class="panel-hdr"><span>[03] Active Streams</span><span id="senderStreamCount">0</span></div>
         <div id="senderStreamList" class="stream-list">
           <div class="no-streams" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No active streams.</div>
         </div>
       </div>
+
+      <!-- [04] Status -->
       <div class="panel">
-        <div class="panel-hdr"><span>[03] Status</span></div>
+        <div class="panel-hdr"><span>[04] Status</span></div>
         <div class="data-grid">
           <div><div class="dk">STREAMS</div><div class="dv" id="senderNetState">0 ACTIVE</div></div>
           <div><div class="dk">SERVER</div><div class="dv" id="senderSrvState">ONLINE</div></div>
+          <div><div class="dk">WS</div><div class="dv" id="wsState">DISCONNECTED</div></div>
+          <div><div class="dk">HEARTBEAT</div><div class="dv" id="hbState">—</div></div>
         </div>
       </div>
+
       <div class="terminal" id="logBox"></div>
     </aside>
   </main>
 </div>
 <script>
+// ── Device identity ─────────────────────────────────────────────────────────
+let deviceId   = sessionStorage.getItem('sender_device_id') || '';
+let deviceName = sessionStorage.getItem('sender_device_name') || '';
+let registered = false;
+let ws         = null;
+let hbInterval = null;
+
+if (deviceId)   document.getElementById('devIdDisplay').textContent = deviceId.slice(0,18)+'...';
+if (deviceName) document.getElementById('deviceName').value = deviceName;
+
+async function registerDevice() {
+  const name = document.getElementById('deviceName').value.trim();
+  if (!name) { log('Enter a device name first.', 'warn'); return; }
+  try {
+    const body = { name, role: 'mic' };
+    if (deviceId) body.id = deviceId;
+    const res = await fetch('/device/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const dev = await res.json();
+    deviceId   = dev.id;
+    deviceName = dev.name;
+    registered = true;
+    sessionStorage.setItem('sender_device_id',   deviceId);
+    sessionStorage.setItem('sender_device_name', deviceName);
+    document.getElementById('devIdDisplay').textContent     = deviceId.slice(0,18)+'...';
+    document.getElementById('devStatusDisplay').textContent = 'ONLINE';
+    document.getElementById('devRegState').textContent      = 'REGISTERED';
+    document.getElementById('devRegState').style.color      = 'var(--neon-green)';
+    log('Device registered: ' + deviceName + ' [' + deviceId.slice(0,8) + ']');
+    connectWs();
+    startHeartbeat();
+  } catch (err) {
+    log('Registration failed: ' + err.message, 'err');
+  }
+}
+
+function connectWs() {
+  if (ws && ws.readyState < 2) return;
+  ws = new WebSocket('wss://' + location.host + '/ws');
+  ws.onopen  = () => { document.getElementById('wsState').textContent = 'CONNECTED'; log('WS connected.'); };
+  ws.onclose = () => { document.getElementById('wsState').textContent = 'DISCONNECTED'; setTimeout(connectWs, 5000); };
+  ws.onerror = () => { document.getElementById('wsState').textContent = 'ERROR'; };
+  ws.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      // Sender only reacts to set_volume targeting this device
+      if (msg.type === 'set_volume' && msg.device_id === deviceId) {
+        log('Manager set volume: ' + Math.round(msg.volume * 100) + '%', 'warn');
+      }
+    } catch {}
+  };
+}
+
+function startHeartbeat() {
+  if (hbInterval) clearInterval(hbInterval);
+  hbInterval = setInterval(() => {
+    if (ws && ws.readyState === 1 && deviceId) {
+      ws.send(JSON.stringify({ type: 'heartbeat', device_id: deviceId }));
+      const t = new Date().toLocaleTimeString('en-US', { hour12: false });
+      document.getElementById('hbState').textContent = t;
+    }
+  }, 10000);
+}
+
+document.getElementById('registerDevBtn').addEventListener('click', registerDevice);
+
+// ── Canvas visualizer ───────────────────────────────────────────────────────
 const canvas = document.getElementById('viz');
 const ctx    = canvas.getContext('2d');
 let analyserNodes = [];
@@ -153,11 +252,10 @@ function vizLoop(){
   if(analyserNodes.length===0){
     ctx.fillStyle='rgba(255,136,0,0.15)';ctx.fillRect(0,h/2-1,w,2);
   } else {
-    analyserNodes.forEach((an,idx)=>{
+    analyserNodes.forEach((an)=>{
       const data=new Uint8Array(an.frequencyBinCount);
       an.getByteFrequencyData(data);
-      const bars=60,step=Math.floor(data.length/bars),bw=w/bars;
-      const cy=h/2;
+      const bars=60,step=Math.floor(data.length/bars),bw=w/bars,cy=h/2;
       for(let i=0;i<bars;i++){
         let s=0;for(let j=0;j<step;j++)s+=data[i*step+j]||0;
         const norm=Math.pow(s/step/255,1.5);
@@ -172,6 +270,7 @@ function vizLoop(){
   requestAnimationFrame(vizLoop);
 }
 
+// ── Logging ─────────────────────────────────────────────────────────────────
 const logEl  = document.getElementById('logBox');
 const sysDot = document.getElementById('sysDot');
 const sysText= document.getElementById('sysText');
@@ -197,7 +296,9 @@ async function sendOffer(endpoint,body){
 }
 
 const activeConnections={};
-let backoff=2000;
+
+// Backoff per-stream name
+const backoffMap={};
 
 function updateCount(){
   const n=Object.keys(activeConnections).length;
@@ -208,8 +309,7 @@ function updateCount(){
 
 function renderCard(name){
   const list=document.getElementById('senderStreamList');
-  const ex=list.querySelector('.no-streams');
-  if(ex)ex.remove();
+  const ex=list.querySelector('.no-streams');if(ex)ex.remove();
   const card=document.createElement('div');
   card.id='scard_'+name;card.className='sender-card';
   card.innerHTML=`<div class="sender-card-row"><span style="font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-orange);flex:1;">● ${name}</span><button class="danger" style="flex:0;min-width:60px;padding:3px 6px;font-size:0.7rem;" onclick="stopStream('${name}')">Stop</button></div><div class="vu-bar"><div class="vu-fill" id="vu_${name}"></div></div>`;
@@ -225,8 +325,7 @@ window.stopStream=function(name){
     delete activeConnections[name];
   }
   fetch('/stream/'+encodeURIComponent(name),{method:'DELETE'}).catch(()=>{});
-  const card=document.getElementById('scard_'+name);
-  if(card)card.remove();
+  const card=document.getElementById('scard_'+name);if(card)card.remove();
   const list=document.getElementById('senderStreamList');
   if(list&&list.children.length===0){
     const ph=document.createElement('div');ph.className='no-streams';
@@ -241,9 +340,14 @@ async function startStream(){
   const source=document.getElementById('sourceType').value;
   if(!name){log('Enter a stream name first.','warn');return;}
   if(activeConnections[name]){log('"'+name+'" already running.','warn');return;}
+  if(!registered){
+    log('Register this device first before starting a stream.','warn');
+    return;
+  }
   setSys('BROADCASTING','live');
   log('Starting: '+name+' ('+source+')');
   document.getElementById('vizLabel').textContent='TX // '+name;
+  backoffMap[name]=backoffMap[name]||2000;
 
   if(source==='system'){
     try{
@@ -255,8 +359,13 @@ async function startStream(){
       activeConnections[name]={pc:dpc,stream:null,an:null};
       renderCard(name);updateCount();
       log('System capture: '+name);
+      backoffMap[name]=2000;
     } catch(err){
       log('Failed: '+err.message,'err');setSys('IDLE','idle');
+      const delay=backoffMap[name]||2000;
+      backoffMap[name]=Math.min(delay*2,30000);
+      log('Retry in '+(delay/1000)+'s...','warn');
+      setTimeout(startStream,delay);
     }
     return;
   }
@@ -295,11 +404,16 @@ async function startStream(){
         delete activeConnections[name];
         analyserNodes=analyserNodes.filter(a=>a!==an2);
         updateCount();
-        log('Link lost: '+name+'. Retry in '+(backoff/1000)+'s','warn');
-        setTimeout(startStream,backoff);
-        backoff=Math.min(backoff*2,30000);
+        const delay=backoffMap[name]||2000;
+        backoffMap[name]=Math.min(delay*2,30000);
+        log('Link lost: '+name+'. Retry in '+(delay/1000)+'s','warn');
+        setTimeout(()=>{
+          document.getElementById('streamName').value=name;
+          document.getElementById('sourceType').value=source;
+          startStream();
+        },delay);
       }
-      if(pc2.connectionState==='connected')backoff=2000;
+      if(pc2.connectionState==='connected')backoffMap[name]=2000;
     };
 
     const offer=await pc2.createOffer();
@@ -310,6 +424,7 @@ async function startStream(){
     activeConnections[name]={pc:pc2,stream,an:an2};
     renderCard(name);updateCount();
     log('Stream live: '+name);
+    backoffMap[name]=2000;
 
     function vuTick(){
       if(!activeConnections[name])return;
@@ -327,9 +442,15 @@ async function startStream(){
 }
 
 document.getElementById('startStreamBtn').addEventListener('click',startStream);
+
+// Auto-re-register if session already has id
+if(deviceId && deviceName) {
+  registerDevice();
+}
+
 resizeCanvas();
 requestAnimationFrame(vizLoop);
-log('SENDER READY.');
+log('SENDER READY. Register device then start a stream.');
 </script>
 </body>
 </html>
