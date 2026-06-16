@@ -1,1 +1,362 @@
-INDEX_CONTENT
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Y4Z // Speaker</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#050608;color:#d1d5db;font-family:'Share Tech Mono',monospace;
+         min-height:100dvh;padding:24px;display:flex;flex-direction:column;gap:20px;}
+    h1{color:#00f0ff;font-size:1.2rem;letter-spacing:3px;text-transform:uppercase;}
+    .card{background:rgba(10,12,16,0.92);border:1px solid rgba(0,240,255,0.18);
+          padding:18px;display:flex;flex-direction:column;gap:12px;}
+    label{color:#6b7280;font-size:0.78rem;letter-spacing:1px;text-transform:uppercase;}
+    input[type=text]{background:#0a0c10;border:1px solid rgba(0,240,255,0.25);color:#d1d5db;
+                     padding:8px 12px;font-family:inherit;font-size:0.85rem;width:100%;outline:none;}
+    input[type=text]:focus{border-color:#00f0ff;}
+    .stream-list{display:flex;flex-direction:column;gap:8px;min-height:32px;}
+    .stream-item{display:flex;align-items:center;gap:10px;padding:8px 10px;
+                 background:#0a0c10;border:1px solid rgba(0,240,255,0.12);}
+    .stream-item input[type=checkbox]{accent-color:#00f0ff;width:16px;height:16px;cursor:pointer;}
+    .stream-item label{color:#d1d5db;font-size:0.82rem;cursor:pointer;flex:1;text-transform:none;letter-spacing:0;}
+    .stream-item .gain-wrap{display:flex;align-items:center;gap:6px;}
+    .stream-item input[type=range]{width:80px;accent-color:#00f0ff;cursor:pointer;}
+    .stream-item .gain-val{color:#00f0ff;font-size:0.75rem;min-width:36px;text-align:right;}
+    button{padding:10px 20px;background:rgba(0,240,255,0.08);border:1px solid #00f0ff;
+           color:#00f0ff;font-family:inherit;font-size:0.85rem;letter-spacing:2px;
+           cursor:pointer;transition:background 0.2s,color 0.2s;text-transform:uppercase;}
+    button:hover{background:#00f0ff;color:#000;}
+    button:disabled{opacity:0.4;cursor:not-allowed;}
+    .status{font-size:0.78rem;letter-spacing:1px;}
+    .status.ok{color:#22c55e;}
+    .status.err{color:#ef4444;}
+    .status.info{color:#6b7280;}
+    .badge{display:inline-block;padding:2px 8px;font-size:0.7rem;letter-spacing:1px;border-radius:2px;
+           text-transform:uppercase;}
+    .badge-online{background:rgba(34,197,94,0.15);border:1px solid #22c55e;color:#22c55e;}
+    .badge-offline{background:rgba(107,114,128,0.15);border:1px solid #6b7280;color:#6b7280;}
+    #device-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .empty{color:#374151;font-size:0.8rem;text-align:center;padding:16px;}
+  </style>
+</head>
+<body>
+  <h1>// Speaker Client</h1>
+
+  <div class="card">
+    <label for="speaker-name">Speaker Name</label>
+    <input type="text" id="speaker-name" placeholder="e.g. Living Room Speaker" value="Speaker"/>
+    <div id="device-row">
+      <span class="status info" id="device-status">not registered</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>Available Streams</label>
+    <div class="stream-list" id="stream-list">
+      <div class="empty">waiting for streams...</div>
+    </div>
+  </div>
+
+  <div class="card" style="flex-direction:row;gap:12px;align-items:center;flex-wrap:wrap;">
+    <button id="btn-connect">Connect</button>
+    <button id="btn-disconnect" disabled>Disconnect</button>
+    <span class="status info" id="conn-status">idle</span>
+  </div>
+
+<script>
+'use strict';
+
+// ── state ──────────────────────────────────────────────────────────────────
+const OFFLINE_MS = 15_000;
+let deviceId   = null;
+let ws         = null;
+let audioCtx   = null;
+let gainNodes  = {};   // streamName → GainNode
+let pc         = null;
+let heartbeatTimer = null;
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const elName      = document.getElementById('speaker-name');
+const elDevStatus = document.getElementById('device-status');
+const elConnStatus= document.getElementById('conn-status');
+const elStreamList= document.getElementById('stream-list');
+const btnConnect  = document.getElementById('btn-connect');
+const btnDiscon   = document.getElementById('btn-disconnect');
+
+// ── helpers ────────────────────────────────────────────────────────────────
+function setConnStatus(msg, cls='info') {
+  elConnStatus.textContent = msg;
+  elConnStatus.className = 'status ' + cls;
+}
+function setDevStatus(msg, cls='info') {
+  elDevStatus.textContent = msg;
+  elDevStatus.className = 'status ' + cls;
+}
+
+// ── device registration ────────────────────────────────────────────────────
+async function registerDevice() {
+  const name = elName.value.trim() || 'Speaker';
+  const id   = deviceId || ('spk-' + Math.random().toString(36).slice(2,10));
+  const res  = await fetch('/device/register', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ id, name, role: 'speaker' })
+  });
+  if (!res.ok) throw new Error('register failed: ' + res.status);
+  const data = await res.json();
+  deviceId = data.id;
+  setDevStatus('id: ' + deviceId.slice(0,8) + '…', 'ok');
+  return deviceId;
+}
+
+// ── heartbeat ──────────────────────────────────────────────────────────────
+function startHeartbeat() {
+  stopHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN && deviceId) {
+      ws.send(JSON.stringify({ type: 'heartbeat', device_id: deviceId }));
+    }
+  }, 10_000);
+}
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+}
+
+// ── WebSocket control bus ──────────────────────────────────────────────────
+let knownStreams = new Set();
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+  ws.onopen = () => {
+    console.log('[ws] connected');
+    if (deviceId) startHeartbeat();
+  };
+
+  ws.onmessage = (e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+
+    if (msg.type === 'snapshot') {
+      knownStreams = new Set(msg.streams || []);
+      renderStreamList();
+      return;
+    }
+    if (msg.type === 'stream_added') {
+      knownStreams.add(msg.name);
+      renderStreamList();
+      return;
+    }
+    if (msg.type === 'stream_removed') {
+      knownStreams.delete(msg.name);
+      renderStreamList();
+      return;
+    }
+    // remote volume command from manager
+    if (msg.type === 'set_volume' && msg.device_id === deviceId) {
+      const vol = parseFloat(msg.volume);
+      if (msg.stream) {
+        if (gainNodes[msg.stream]) gainNodes[msg.stream].gain.value = vol;
+      } else {
+        // master volume: apply to all
+        Object.values(gainNodes).forEach(g => g.gain.value = vol);
+      }
+    }
+  };
+
+  ws.onclose = () => {
+    console.log('[ws] closed — reconnecting in 3s');
+    setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+// ── stream list UI ─────────────────────────────────────────────────────────
+let checkedStreams = new Set();
+
+function renderStreamList() {
+  if (knownStreams.size === 0) {
+    elStreamList.innerHTML = '<div class="empty">no active streams</div>';
+    return;
+  }
+  // preserve existing checked state
+  const existing = elStreamList.querySelectorAll('input[type=checkbox]');
+  existing.forEach(cb => {
+    if (cb.checked) checkedStreams.add(cb.dataset.stream);
+    else            checkedStreams.delete(cb.dataset.stream);
+  });
+
+  elStreamList.innerHTML = '';
+  knownStreams.forEach(name => {
+    const div = document.createElement('div');
+    div.className = 'stream-item';
+    const cbId = 'cb-' + name;
+    div.innerHTML = `
+      <input type="checkbox" id="${cbId}" data-stream="${name}"
+             ${checkedStreams.has(name) ? 'checked' : ''}>
+      <label for="${cbId}">${name}</label>
+      <div class="gain-wrap">
+        <input type="range" min="0" max="2" step="0.05" value="1"
+               data-gain-stream="${name}" title="Gain">
+        <span class="gain-val" id="gv-${name}">1.00x</span>
+      </div>`;
+    elStreamList.appendChild(div);
+  });
+
+  elStreamList.querySelectorAll('input[type=range]').forEach(sl => {
+    sl.addEventListener('input', () => {
+      const sn = sl.dataset.gainStream;
+      const v  = parseFloat(sl.value);
+      document.getElementById('gv-' + sn).textContent = v.toFixed(2) + 'x';
+      if (gainNodes[sn]) gainNodes[sn].gain.value = v;
+    });
+  });
+}
+
+// ── WebRTC connect ─────────────────────────────────────────────────────────
+function getSelectedStreams() {
+  const result = [];
+  elStreamList.querySelectorAll('input[type=checkbox]:checked').forEach(cb => {
+    result.push(cb.dataset.stream);
+  });
+  return result;
+}
+
+async function connect() {
+  const streams = getSelectedStreams();
+  if (streams.length === 0) {
+    setConnStatus('select at least one stream', 'err');
+    return;
+  }
+
+  btnConnect.disabled = true;
+  setConnStatus('registering device…', 'info');
+
+  try {
+    await registerDevice();
+  } catch(e) {
+    setConnStatus('device register failed', 'err');
+    btnConnect.disabled = false;
+    return;
+  }
+
+  startHeartbeat();
+
+  // ── AudioContext — must be created/resumed on user gesture ────────────────
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // KEY FIX: resume the context here while we are inside the click handler
+  if (audioCtx.state === 'suspended') {
+    await audioCtx.resume();
+  }
+
+  setConnStatus('creating peer connection…', 'info');
+
+  if (pc) {
+    pc.close();
+    pc = null;
+    gainNodes = {};
+  }
+
+  pc = new RTCPeerConnection({
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+  });
+
+  // One transceiver per stream so we get one track per stream
+  streams.forEach(() => pc.addTransceiver('audio', { direction: 'recvonly' }));
+
+  pc.ontrack = (e) => {
+    const stream = e.streams[0] || new MediaStream([e.track]);
+    const streamName = streams[Object.keys(gainNodes).length] || 'unknown';
+    console.log('[receiver] track for stream:', streamName);
+
+    const source = audioCtx.createMediaStreamSource(stream);
+    const gain   = audioCtx.createGain();
+    gain.gain.value = 1.0;
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    gainNodes[streamName] = gain;
+
+    // sync gain slider if it exists
+    const sl = elStreamList.querySelector(`[data-gain-stream="${streamName}"]`);
+    if (sl) sl.addEventListener('input', () => { gain.gain.value = parseFloat(sl.value); });
+
+    // Make sure context is running when track arrives
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    setConnStatus('ICE: ' + pc.iceConnectionState,
+      pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed' ? 'ok' : 'info');
+    if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
+      setConnStatus('connection lost — reconnect', 'err');
+      btnConnect.disabled  = false;
+      btnDiscon.disabled   = true;
+    }
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  await new Promise(resolve => {
+    if (pc.iceGatheringState === 'complete') { resolve(); return; }
+    pc.onicegatheringstatechange = () => {
+      if (pc.iceGatheringState === 'complete') resolve();
+    };
+    setTimeout(resolve, 5000);
+  });
+
+  setConnStatus('negotiating…', 'info');
+
+  let answer;
+  try {
+    const res = await fetch('/receiver/offer', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ streams, sdp: pc.localDescription })
+    });
+    if (!res.ok) throw new Error('offer failed: ' + res.status);
+    answer = await res.json();
+  } catch(e) {
+    setConnStatus('offer error: ' + e.message, 'err');
+    btnConnect.disabled = false;
+    return;
+  }
+
+  await pc.setRemoteDescription(answer);
+
+  // Resume again after setRemoteDescription in case suspended during negotiation
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+  setConnStatus('connected ✓', 'ok');
+  btnConnect.disabled = false;
+  btnDiscon.disabled  = false;
+}
+
+async function disconnect() {
+  stopHeartbeat();
+  if (pc) { pc.close(); pc = null; }
+  gainNodes = {};
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  if (deviceId) {
+    await fetch('/device/' + deviceId, { method: 'DELETE' }).catch(() => {});
+    deviceId = null;
+  }
+  setDevStatus('not registered', 'info');
+  setConnStatus('disconnected', 'info');
+  btnConnect.disabled = false;
+  btnDiscon.disabled  = true;
+}
+
+// ── init ───────────────────────────────────────────────────────────────────
+btnConnect.addEventListener('click', connect);
+btnDiscon.addEventListener ('click', disconnect);
+
+connectWS();
+</script>
+</body>
+</html>

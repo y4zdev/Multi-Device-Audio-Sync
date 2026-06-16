@@ -1,1 +1,401 @@
-MANAGER_CONTENT
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Y4Z // Manager</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#050608;color:#d1d5db;font-family:'Share Tech Mono',monospace;
+         min-height:100dvh;display:grid;
+         grid-template-rows:56px 1fr;
+         grid-template-columns:280px 1fr 300px;
+         grid-template-areas:'hdr hdr hdr' 'left center right';}
+    @media(max-width:900px){
+      body{grid-template-columns:1fr;grid-template-rows:56px auto auto auto;
+           grid-template-areas:'hdr' 'left' 'center' 'right';}
+    }
+
+    /* header */
+    header{grid-area:hdr;border-bottom:1px solid rgba(0,240,255,0.18);
+           display:flex;align-items:center;padding:0 20px;gap:16px;}
+    header h1{color:#00f0ff;font-size:1rem;letter-spacing:3px;text-transform:uppercase;flex:1;}
+    #ws-badge{font-size:0.7rem;letter-spacing:1px;padding:3px 10px;
+              border-radius:2px;text-transform:uppercase;}
+    .ws-ok  {background:rgba(34,197,94,0.12);border:1px solid #22c55e;color:#22c55e;}
+    .ws-err {background:rgba(239,68,68,0.12);border:1px solid #ef4444;color:#ef4444;}
+    .ws-wait{background:rgba(107,114,128,0.12);border:1px solid #6b7280;color:#6b7280;}
+
+    /* panels */
+    .panel{overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;
+           border-right:1px solid rgba(0,240,255,0.08);}
+    #panel-left {grid-area:left;}
+    #panel-center{grid-area:center;border-right:none;}
+    #panel-right{grid-area:right;border-right:none;border-left:1px solid rgba(0,240,255,0.08);}
+
+    .panel-title{color:#6b7280;font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;
+                 padding-bottom:8px;border-bottom:1px solid rgba(0,240,255,0.08);}
+
+    /* device cards */
+    .device-card{background:#0a0c10;border:1px solid rgba(0,240,255,0.12);
+                 padding:12px;display:flex;flex-direction:column;gap:8px;
+                 cursor:pointer;transition:border-color 0.2s;}
+    .device-card:hover{border-color:rgba(0,240,255,0.4);}
+    .device-card.selected{border-color:#00f0ff;}
+    .device-card.offline{border-color:rgba(107,114,128,0.3);opacity:0.6;}
+
+    .dc-top{display:flex;align-items:center;gap:8px;}
+    .dc-name{flex:1;font-size:0.85rem;color:#d1d5db;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .dc-role{font-size:0.65rem;letter-spacing:1px;padding:2px 6px;border-radius:2px;
+             text-transform:uppercase;}
+    .role-mic    {background:rgba(139,92,246,0.15);border:1px solid #8b5cf6;color:#8b5cf6;}
+    .role-speaker{background:rgba(34,197,94,0.12);border:1px solid #22c55e;color:#22c55e;}
+    .role-manager{background:rgba(0,240,255,0.08);border:1px solid #00f0ff;color:#00f0ff;}
+
+    .dc-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+    .dot-online{background:#22c55e;}
+    .dot-offline{background:#6b7280;}
+    .dot-live{background:#00f0ff;box-shadow:0 0 6px #00f0ff;animation:pulse 1.4s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+    .dc-meta{font-size:0.7rem;color:#374151;}
+    .dc-streams{display:flex;flex-wrap:wrap;gap:4px;}
+    .stream-chip{font-size:0.65rem;padding:1px 6px;background:rgba(0,240,255,0.07);
+                 border:1px solid rgba(0,240,255,0.2);color:#00f0ff;}
+
+    /* streams panel */
+    .stream-row{background:#0a0c10;border:1px solid rgba(0,240,255,0.1);
+                padding:10px;display:flex;align-items:center;gap:8px;}
+    .stream-name{flex:1;font-size:0.82rem;color:#d1d5db;}
+    .stream-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;
+                box-shadow:0 0 5px #22c55e;animation:pulse 1.4s ease-in-out infinite;}
+
+    /* right panel — device detail */
+    #detail-empty{color:#374151;font-size:0.8rem;text-align:center;padding:32px 8px;}
+    .detail-section{display:flex;flex-direction:column;gap:8px;}
+    .detail-label{color:#6b7280;font-size:0.7rem;letter-spacing:1px;text-transform:uppercase;}
+    .detail-val{font-size:0.85rem;color:#d1d5db;}
+    .vol-row{display:flex;align-items:center;gap:8px;}
+    .vol-row input[type=range]{flex:1;accent-color:#00f0ff;cursor:pointer;}
+    .vol-val{color:#00f0ff;font-size:0.78rem;min-width:38px;text-align:right;}
+
+    .stream-assign{display:flex;flex-direction:column;gap:6px;}
+    .assign-row{display:flex;align-items:center;gap:8px;padding:6px 8px;
+                background:#0a0c10;border:1px solid rgba(0,240,255,0.1);}
+    .assign-row input[type=checkbox]{accent-color:#00f0ff;width:15px;height:15px;cursor:pointer;}
+    .assign-row label{flex:1;font-size:0.8rem;color:#d1d5db;cursor:pointer;
+                      font-family:'Share Tech Mono',monospace;}
+
+    .btn-remove{padding:6px 14px;background:rgba(239,68,68,0.08);
+                border:1px solid #ef4444;color:#ef4444;font-family:inherit;
+                font-size:0.75rem;letter-spacing:1px;cursor:pointer;
+                transition:background 0.2s;text-transform:uppercase;}
+    .btn-remove:hover{background:#ef4444;color:#fff;}
+
+    .empty{color:#374151;font-size:0.78rem;text-align:center;padding:20px;}
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>// Audio Manager</h1>
+  <span id="ws-badge" class="ws-wait">connecting…</span>
+</header>
+
+<div class="panel" id="panel-left">
+  <div class="panel-title">Devices</div>
+  <div id="device-list"><div class="empty">no devices</div></div>
+</div>
+
+<div class="panel" id="panel-center">
+  <div class="panel-title">Active Streams</div>
+  <div id="stream-list"><div class="empty">no active streams</div></div>
+</div>
+
+<div class="panel" id="panel-right">
+  <div class="panel-title">Device Detail</div>
+  <div id="device-detail"><div id="detail-empty">select a device</div></div>
+</div>
+
+<script>
+'use strict';
+
+// ── state ──────────────────────────────────────────────────────────────────
+const OFFLINE_THRESHOLD_MS = 15_000;
+let devices = {};   // id → DeviceInfo
+let streams = new Set();
+let selectedId = null;
+let ws = null;
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const elDevList    = document.getElementById('device-list');
+const elStreamList = document.getElementById('stream-list');
+const elDetail     = document.getElementById('device-detail');
+const elWsBadge    = document.getElementById('ws-badge');
+
+// ── helpers ────────────────────────────────────────────────────────────────
+function isOffline(dev) {
+  if (!dev.last_seen) return false;
+  return (Date.now() - dev.last_seen) > OFFLINE_THRESHOLD_MS;
+}
+
+function statusDotClass(dev) {
+  if (isOffline(dev))            return 'dot-offline';
+  if (dev.status === 'live')     return 'dot-live';
+  return 'dot-online';
+}
+
+function roleBadgeClass(role) {
+  return { mic: 'role-mic', speaker: 'role-speaker', manager: 'role-manager' }[role] || 'role-manager';
+}
+
+// ── render device list ─────────────────────────────────────────────────────
+function renderDevices() {
+  const list = Object.values(devices);
+  if (list.length === 0) {
+    elDevList.innerHTML = '<div class="empty">no devices</div>';
+    return;
+  }
+  elDevList.innerHTML = '';
+  list.forEach(dev => {
+    const offline = isOffline(dev);
+    const card = document.createElement('div');
+    card.className = 'device-card' + (offline ? ' offline' : '') + (dev.id === selectedId ? ' selected' : '');
+    card.dataset.id = dev.id;
+
+    const chips = (dev.assigned_streams || []).map(s =>
+      `<span class="stream-chip">${s}</span>`).join('');
+
+    const seenAgo = dev.last_seen
+      ? Math.round((Date.now() - dev.last_seen) / 1000) + 's ago'
+      : 'never';
+
+    card.innerHTML = `
+      <div class="dc-top">
+        <span class="dc-status-dot ${statusDotClass(dev)}"></span>
+        <span class="dc-name">${dev.name}</span>
+        <span class="dc-role ${roleBadgeClass(dev.role)}">${dev.role}</span>
+      </div>
+      <div class="dc-meta">
+        vol: ${(dev.volume * 100).toFixed(0)}%
+        &nbsp;·&nbsp; seen: ${seenAgo}
+        &nbsp;·&nbsp; id: ${dev.id.slice(0,8)}…
+      </div>
+      ${chips ? '<div class="dc-streams">' + chips + '</div>' : ''}
+    `;
+    card.addEventListener('click', () => selectDevice(dev.id));
+    elDevList.appendChild(card);
+  });
+}
+
+// ── render stream list ─────────────────────────────────────────────────────
+function renderStreams() {
+  if (streams.size === 0) {
+    elStreamList.innerHTML = '<div class="empty">no active streams</div>';
+    return;
+  }
+  elStreamList.innerHTML = '';
+  streams.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'stream-row';
+    row.innerHTML = `<span class="stream-dot"></span><span class="stream-name">${name}</span>`;
+    elStreamList.appendChild(row);
+  });
+}
+
+// ── device detail panel ────────────────────────────────────────────────────
+function selectDevice(id) {
+  selectedId = id;
+  renderDevices(); // re-render to apply selected class
+  renderDetail();
+}
+
+function renderDetail() {
+  const dev = devices[selectedId];
+  if (!dev) {
+    elDetail.innerHTML = '<div id="detail-empty">select a device</div>';
+    return;
+  }
+
+  const assignRows = Array.from(streams).map(s => {
+    const checked = (dev.assigned_streams || []).includes(s) ? 'checked' : '';
+    return `<div class="assign-row">
+      <input type="checkbox" id="asgn-${s}" data-stream="${s}" ${checked}>
+      <label for="asgn-${s}">${s}</label>
+    </div>`;
+  }).join('');
+
+  const offline = isOffline(dev);
+  elDetail.innerHTML = `
+    <div class="detail-section">
+      <div class="detail-label">Name</div>
+      <div class="detail-val">${dev.name} <span class="dc-role ${roleBadgeClass(dev.role)}">${dev.role}</span></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Status</div>
+      <div class="detail-val">
+        <span class="dc-status-dot ${statusDotClass(dev)}" style="display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+        ${offline ? 'offline (no heartbeat)' : dev.status}
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Master Volume</div>
+      <div class="vol-row">
+        <input type="range" id="vol-slider" min="0" max="2" step="0.05"
+               value="${dev.volume}">
+        <span class="vol-val" id="vol-display">${(dev.volume*100).toFixed(0)}%</span>
+      </div>
+    </div>
+    ${streams.size > 0 ? `
+    <div class="detail-section">
+      <div class="detail-label">Assign Streams</div>
+      <div class="stream-assign">
+        ${assignRows || '<div class="empty">no streams available</div>'}
+      </div>
+    </div>` : ''}
+    <div class="detail-section" style="margin-top:auto;padding-top:8px;">
+      <button class="btn-remove" id="btn-remove-dev">Remove Device</button>
+    </div>
+  `;
+
+  // volume slider — debounced PATCH
+  let volTimer = null;
+  const slider  = document.getElementById('vol-slider');
+  const volDisp = document.getElementById('vol-display');
+  slider.addEventListener('input', () => {
+    const v = parseFloat(slider.value);
+    volDisp.textContent = (v * 100).toFixed(0) + '%';
+    if (dev) dev.volume = v;
+    clearTimeout(volTimer);
+    volTimer = setTimeout(() => {
+      fetch('/device/' + selectedId + '/volume', {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ volume: v })
+      });
+    }, 150);
+  });
+
+  // stream assign checkboxes
+  document.querySelectorAll('.assign-row input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const assigned = Array.from(
+        document.querySelectorAll('.assign-row input[type=checkbox]:checked')
+      ).map(c => c.dataset.stream);
+      fetch('/device/' + selectedId + '/streams', {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ streams: assigned })
+      });
+      if (devices[selectedId]) devices[selectedId].assigned_streams = assigned;
+    });
+  });
+
+  // remove device
+  document.getElementById('btn-remove-dev').addEventListener('click', () => {
+    fetch('/device/' + selectedId, { method: 'DELETE' }).then(() => {
+      delete devices[selectedId];
+      selectedId = null;
+      renderDevices();
+      renderDetail();
+    });
+  });
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+function setWsBadge(state) {
+  const map = {
+    ok:   ['ws-ok',   'live'],
+    err:  ['ws-err',  'disconnected'],
+    wait: ['ws-wait', 'connecting…']
+  };
+  const [cls, txt] = map[state] || map.wait;
+  elWsBadge.className = cls;
+  elWsBadge.textContent = txt;
+}
+
+function connectWS() {
+  setWsBadge('wait');
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+  ws.onopen = () => { setWsBadge('ok'); console.log('[manager ws] open'); };
+
+  ws.onmessage = (e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    handleEvent(msg);
+  };
+
+  ws.onclose = () => {
+    setWsBadge('err');
+    console.log('[manager ws] closed — retry in 3s');
+    setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+function handleEvent(msg) {
+  switch (msg.type) {
+    case 'snapshot':
+      devices = {};
+      (msg.devices || []).forEach(d => { devices[d.id] = d; });
+      streams = new Set(msg.streams || []);
+      break;
+
+    case 'device_joined':
+      if (msg.device) devices[msg.device.id] = msg.device;
+      break;
+
+    case 'device_left':
+      delete devices[msg.id];
+      if (selectedId === msg.id) { selectedId = null; }
+      break;
+
+    case 'stream_added':
+      streams.add(msg.name);
+      break;
+
+    case 'stream_removed':
+      streams.delete(msg.name);
+      break;
+
+    case 'volume_changed':
+      if (devices[msg.device_id]) devices[msg.device_id].volume = msg.volume;
+      break;
+
+    case 'route_changed':
+      if (devices[msg.speaker_id]) {
+        const d = devices[msg.speaker_id];
+        if (msg.connected) {
+          if (!d.assigned_streams.includes(msg.source))
+            d.assigned_streams.push(msg.source);
+        } else {
+          d.assigned_streams = d.assigned_streams.filter(s => s !== msg.source);
+        }
+      }
+      break;
+  }
+
+  renderDevices();
+  renderStreams();
+  // refresh detail panel only if a device is selected
+  if (selectedId && devices[selectedId]) renderDetail();
+  else if (selectedId && !devices[selectedId]) {
+    selectedId = null;
+    elDetail.innerHTML = '<div id="detail-empty">select a device</div>';
+  }
+}
+
+// ── periodic offline check (re-render every 5s to update dot + ago text) ───
+setInterval(() => {
+  renderDevices();
+  if (selectedId && devices[selectedId]) renderDetail();
+}, 5_000);
+
+// ── init ───────────────────────────────────────────────────────────────────
+connectWS();
+</script>
+</body>
+</html>
