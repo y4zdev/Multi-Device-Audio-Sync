@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Y4Z // RECEIVER</title>
+  <title>Y4Z // SPEAKER</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
@@ -16,7 +16,6 @@
       --neon-yellow: #fcee0a;
       --neon-green: #00ff41;
       --neon-orange: #ff8800;
-      --accent: var(--neon-cyan);
       --text-main: #d1d5db;
       --text-muted: #6b7280;
       --grid-line: rgba(0,240,255,0.06);
@@ -27,63 +26,54 @@
     }
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#050608;color:var(--text-main);font-family:var(--font-ui);min-height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
-    body::after{content:" ";display:block;position:fixed;inset:0;background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.22) 50%),linear-gradient(90deg,rgba(0,0,255,0.03),rgba(0,255,255,0.02),rgba(0,0,255,0.03));background-size:100% 2px,3px 100%;pointer-events:none;z-index:999;}
+    body::after{content:" ";display:block;position:fixed;inset:0;background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.22) 50%),linear-gradient(90deg,rgba(255,0,0,0.04),rgba(0,255,0,0.02),rgba(0,0,255,0.04));background-size:100% 2px,3px 100%;pointer-events:none;z-index:999;}
     .grid-bg{position:fixed;inset:0;z-index:-1;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:30px 30px;}
+
     .hud{display:flex;flex-direction:column;height:100dvh;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:8px;}
 
     /* header */
-    .header-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:var(--bg-panel);border:1px solid var(--neon-cyan);border-left:4px solid var(--neon-cyan);clip-path:var(--clip-a);box-shadow:0 0 12px rgba(0,240,255,0.12);}
+    .header-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:var(--bg-panel);border:1px solid var(--neon-cyan);border-left:4px solid var(--neon-cyan);clip-path:var(--clip-a);box-shadow:0 0 12px rgba(0,240,255,0.15);}
     .brand h1{font-size:1.4rem;letter-spacing:3px;color:var(--neon-cyan);text-transform:uppercase;line-height:1;}
     .brand span{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);}
     .header-right{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:0.8rem;}
     .role-badge{padding:3px 10px;border:1px solid var(--neon-cyan);color:var(--neon-cyan);font-size:0.7rem;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .nav-link{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);text-decoration:none;padding:3px 8px;border:1px solid rgba(0,240,255,0.2);transition:all 0.15s;}
+    .nav-link{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);text-decoration:none;padding:3px 8px;border:1px solid rgba(0,240,255,0.2);}
     .nav-link:hover{color:var(--neon-cyan);border-color:var(--neon-cyan);}
-    .sys-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);flex-shrink:0;}
+    .sys-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);}
     .sys-dot.live{background:var(--neon-green);box-shadow:0 0 8px var(--neon-green);}
     .sys-dot.warn{background:var(--neon-yellow);box-shadow:0 0 8px var(--neon-yellow);animation:blink 1s infinite;}
     .sys-dot.err{background:var(--neon-magenta);box-shadow:0 0 8px var(--neon-magenta);}
     @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
 
-    /* core layout */
+    /* layout */
     .core{display:flex;flex:1;gap:8px;min-height:0;}
-    .side{width:340px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
-    .side-right{width:300px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
-    .viz-wrap{flex:1;position:relative;background:radial-gradient(circle at center,rgba(0,240,255,0.04) 0%,transparent 60%),#000;border:1px solid rgba(0,240,255,0.2);clip-path:var(--clip-b);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+
+    /* visualizer */
+    .viz-wrap{flex:1;position:relative;background:radial-gradient(circle at center,rgba(0,240,255,0.04) 0%,transparent 60%),#000;border:1px solid rgba(0,240,255,0.2);clip-path:var(--clip-b);overflow:hidden;}
+    canvas{width:100%;height:100%;display:block;}
     .viz-label{position:absolute;bottom:10px;left:14px;font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);opacity:0.6;}
 
-    /* audio rings visualizer */
-    .rings-wrap{position:relative;width:180px;height:180px;display:flex;align-items:center;justify-content:center;}
-    .ring{position:absolute;border-radius:50%;border:1px solid rgba(0,240,255,0.15);transition:border-color 0.2s,box-shadow 0.2s;}
-    .ring-1{width:60px;height:60px;}
-    .ring-2{width:100px;height:100px;}
-    .ring-3{width:140px;height:140px;}
-    .ring-4{width:180px;height:180px;}
-    .ring.active{border-color:var(--neon-cyan);box-shadow:0 0 12px rgba(0,240,255,0.4);animation:ring-pulse 1.5s ease-in-out infinite;}
-    @keyframes ring-pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-    .core-dot{width:14px;height:14px;border-radius:50%;background:var(--text-muted);transition:background 0.3s,box-shadow 0.3s;z-index:1;}
-    .core-dot.live{background:var(--neon-cyan);box-shadow:0 0 16px var(--neon-cyan);}
-
-    /* panels */
+    /* side panels */
+    .side{width:330px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
     .panel{background:var(--bg-panel);border:1px solid rgba(0,240,255,0.18);padding:14px;clip-path:var(--clip-a);}
-    .panel-hdr{font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-cyan);text-transform:uppercase;border-bottom:1px dashed rgba(0,240,255,0.25);padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}
+    .panel-hdr{font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-cyan);text-transform:uppercase;border-bottom:1px dashed rgba(0,240,255,0.25);padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;}
 
-    /* fields */
+    /* forms */
     .field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
     .field label{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;}
-    .field input{background:rgba(0,0,0,0.5);border:1px solid rgba(0,240,255,0.3);color:var(--text-main);padding:6px 8px;font-family:var(--font-mono);font-size:0.8rem;width:100%;outline:none;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);transition:border-color 0.15s;}
-    .field input:focus{border-color:var(--neon-cyan);}
+    .field input{background:rgba(0,0,0,0.5);border:1px solid rgba(0,240,255,0.3);color:var(--text-main);padding:6px 8px;font-family:var(--font-mono);font-size:0.8rem;width:100%;outline:none;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
+    .field input:focus{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(0,240,255,0.2);}
 
     /* buttons */
-    button{background:transparent;color:var(--text-main);border:1px solid rgba(0,240,255,0.35);padding:7px 12px;font-family:var(--font-mono);font-size:0.78rem;text-transform:uppercase;cursor:pointer;transition:all 0.18s ease;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);}
-    button:hover{background:rgba(0,240,255,0.08);border-color:var(--neon-cyan);color:var(--neon-cyan);}
+    .btn-row{display:flex;flex-wrap:wrap;gap:6px;}
+    button{flex:1;min-width:70px;background:transparent;color:var(--text-main);border:1px solid rgba(0,240,255,0.35);padding:7px 10px;font-family:var(--font-mono);font-size:0.78rem;text-transform:uppercase;cursor:pointer;transition:all 0.18s ease;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);}
+    button:hover{background:rgba(0,240,255,0.1);border-color:var(--neon-cyan);}
     button:active{transform:scale(0.97);}
     button.primary{border-color:var(--neon-cyan);color:var(--neon-cyan);background:rgba(0,240,255,0.04);}
     button.primary:hover{background:var(--neon-cyan);color:#000;}
     button.danger{border-color:var(--neon-magenta);color:var(--neon-magenta);}
     button.danger:hover{background:var(--neon-magenta);color:#000;}
     button:disabled{opacity:0.35;cursor:not-allowed;}
-    .btn-row{display:flex;flex-wrap:wrap;gap:6px;}
 
     /* data grid */
     .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
@@ -91,15 +81,17 @@
     .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
     /* stream list */
-    .stream-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;}
-    .stream-item{border:1px solid rgba(0,240,255,0.2);padding:8px 10px;display:flex;flex-direction:column;gap:6px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .si-top{display:flex;align-items:center;gap:8px;}
-    .si-cb{accent-color:var(--neon-cyan);width:15px;height:15px;cursor:pointer;}
-    .si-name{flex:1;font-family:var(--font-mono);font-size:0.8rem;color:var(--neon-cyan);cursor:pointer;}
-    .si-gain{display:flex;align-items:center;gap:6px;}
-    .si-gain input[type=range]{width:70px;accent-color:var(--neon-cyan);cursor:pointer;}
-    .si-gain-val{font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-yellow);min-width:34px;text-align:right;}
-    .empty{font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);padding:12px 0;text-align:center;}
+    .stream-list{display:flex;flex-direction:column;gap:6px;}
+    .stream-item{border:1px solid rgba(0,240,255,0.15);padding:8px 10px;display:flex;align-items:center;gap:8px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
+    .stream-item input[type=checkbox]{accent-color:var(--neon-cyan);width:15px;height:15px;cursor:pointer;}
+    .stream-item .sname{flex:1;font-family:var(--font-mono);font-size:0.8rem;color:var(--text-main);}
+    .gain-wrap{display:flex;align-items:center;gap:6px;}
+    .gain-wrap input[type=range]{width:70px;accent-color:var(--neon-cyan);cursor:pointer;}
+    .gain-val{color:var(--neon-cyan);font-family:var(--font-mono);font-size:0.72rem;min-width:38px;text-align:right;}
+
+    /* assigned streams display */
+    .assigned-list{display:flex;flex-wrap:wrap;gap:4px;}
+    .stream-chip{font-family:var(--font-mono);font-size:0.65rem;padding:2px 7px;background:rgba(0,240,255,0.07);border:1px solid rgba(0,240,255,0.25);color:var(--neon-cyan);clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px);}
 
     /* terminal log */
     .terminal{font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-green);background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.15);padding:8px;height:110px;overflow-y:auto;clip-path:var(--clip-b);}
@@ -107,8 +99,9 @@
     .lt{color:var(--text-muted);margin-right:4px;}
     .le{color:var(--neon-magenta);}
     .lw{color:var(--neon-yellow);}
+    .empty-hint{font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);text-align:center;padding:12px;}
 
-    @media(max-width:900px){.core{flex-direction:column;}.side,.side-right{width:100%;}.viz-wrap{min-height:160px;}}
+    @media(max-width:800px){.core{flex-direction:column;}.side{width:100%;flex:0 0 auto;}.viz-wrap{min-height:30vh;}}
   </style>
 </head>
 <body>
@@ -117,27 +110,33 @@
   <header class="header-bar">
     <div class="brand">
       <h1>Audio_Sync_LINK</h1>
-      <span>// RECEIVER — Y4Z.DEV</span>
+      <span>// SPEAKER — Y4Z.DEV</span>
     </div>
     <div class="header-right">
-      <a class="nav-link" href="/sender">▶ Sender</a>
-      <a class="nav-link" href="/manager">▶ Manager</a>
-      <span class="role-badge">SPEAKER</span>
+      <a class="nav-link" href="/sender">&#x25B6; Sender</a>
+      <a class="nav-link" href="/manager">&#x25B6; Manager</a>
+      <span class="role-badge">SPEAKER / OUTPUT</span>
       <span class="sys-dot" id="sysDot"></span>
       <span id="sysText" style="font-family:var(--font-mono);font-size:0.8rem;">IDLE</span>
     </div>
   </header>
 
   <main class="core">
-    <!-- left: identity + connect -->
+    <!-- visualizer -->
+    <section class="viz-wrap">
+      <canvas id="viz"></canvas>
+      <div class="viz-label">&#x25BA; <span id="vizLabel">RX_STANDBY</span></div>
+    </section>
+
+    <!-- side -->
     <aside class="side">
 
-      <!-- [01] Identity -->
+      <!-- [01] Device Identity -->
       <div class="panel">
-        <div class="panel-hdr"><span>[01] Speaker Identity</span><span id="devRegState" style="color:var(--text-muted);">UNREGISTERED</span></div>
+        <div class="panel-hdr"><span>[01] Device Identity</span><span id="devRegState" style="color:var(--text-muted);">UNREGISTERED</span></div>
         <div class="field">
           <label>Speaker Name</label>
-          <input type="text" id="speakerName" placeholder="e.g. Living Room, Headphones" maxlength="40" />
+          <input type="text" id="speakerName" placeholder="e.g. Living Room, Headset" maxlength="40" value="Speaker" />
         </div>
         <div class="data-grid" style="margin-bottom:8px;">
           <div><div class="dk">DEVICE ID</div><div class="dv" id="devIdDisplay" style="font-size:0.65rem;">—</div></div>
@@ -145,353 +144,363 @@
         </div>
       </div>
 
-      <!-- [02] Connect -->
+      <!-- [02] Available Streams -->
       <div class="panel">
-        <div class="panel-hdr"><span>[02] Connection</span></div>
-        <div class="btn-row">
-          <button class="primary" id="btnConnect">▶ Connect</button>
-          <button class="danger" id="btnDiscon" disabled>■ Disconnect</button>
-        </div>
-        <div style="margin-top:8px;">
-          <div class="dk" style="margin-bottom:4px;">LINK STATE</div>
-          <div class="dv" id="connState">IDLE</div>
+        <div class="panel-hdr"><span>[02] Available Streams</span><span id="streamCount" style="color:var(--neon-yellow);">0</span></div>
+        <div id="streamList" class="stream-list">
+          <div class="empty-hint">waiting for streams&#x2026;</div>
         </div>
       </div>
 
-      <!-- [03] Status -->
+      <!-- [03] Assigned by Manager -->
       <div class="panel">
-        <div class="panel-hdr"><span>[03] Status</span></div>
+        <div class="panel-hdr"><span>[03] Manager Assigned</span></div>
+        <div id="assignedStreams" class="assigned-list">
+          <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);">none</span>
+        </div>
+      </div>
+
+      <!-- [04] Connect -->
+      <div class="panel">
+        <div class="panel-hdr"><span>[04] Connection</span></div>
+        <div class="btn-row" style="margin-bottom:8px;">
+          <button class="primary" id="btnConnect">&#x25B6; Connect</button>
+          <button class="danger" id="btnDisconnect" disabled>&#x25A0; Disconnect</button>
+        </div>
         <div class="data-grid">
+          <div><div class="dk">ICE</div><div class="dv" id="iceState">—</div></div>
+          <div><div class="dk">AUDIO CTX</div><div class="dv" id="audioState">—</div></div>
           <div><div class="dk">WS</div><div class="dv" id="wsState">DISCONNECTED</div></div>
           <div><div class="dk">HEARTBEAT</div><div class="dv" id="hbState">—</div></div>
-          <div><div class="dk">STREAMS</div><div class="dv" id="streamCount">0</div></div>
-          <div><div class="dk">ICE</div><div class="dv" id="iceState">—</div></div>
         </div>
       </div>
 
       <div class="terminal" id="logBox"></div>
-    </aside>
-
-    <!-- center: visualizer -->
-    <section class="viz-wrap">
-      <div class="rings-wrap">
-        <div class="ring ring-4" id="ring4"></div>
-        <div class="ring ring-3" id="ring3"></div>
-        <div class="ring ring-2" id="ring2"></div>
-        <div class="ring ring-1" id="ring1"></div>
-        <div class="core-dot" id="coreDot"></div>
-      </div>
-      <div class="viz-label">› <span id="vizLabel">RX_STANDBY</span></div>
-    </section>
-
-    <!-- right: streams -->
-    <aside class="side-right">
-      <!-- [04] Available Streams -->
-      <div class="panel">
-        <div class="panel-hdr"><span>[04] Available Streams</span><span id="streamCountBadge" style="color:var(--neon-yellow);">0</span></div>
-        <div class="stream-list" id="streamList">
-          <div class="empty">awaiting streams...</div>
-        </div>
-      </div>
-
-      <!-- [05] Assigned (by manager) -->
-      <div class="panel">
-        <div class="panel-hdr"><span>[05] Manager Assigned</span></div>
-        <div id="assignedList" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">none</div>
-      </div>
     </aside>
   </main>
 </div>
 
 <script>
 'use strict';
+// ── state ─────────────────────────────────────────────────────────────────────
+let deviceId       = null;
+let ws             = null;
+let audioCtx       = null;
+let gainNodes      = {};   // streamName → GainNode
+let pc             = null;
+let hbTimer        = null;
+let knownStreams    = new Set();
+let assignedStreams = [];
+let checkedStreams  = new Set();
+let isConnected    = false;
 
-// ── state ──────────────────────────────────────────────────────────────────
-let deviceId   = null;
-let ws         = null;
-let audioCtx   = null;
-let gainNodes  = {};
-let pc         = null;
-let hbTimer    = null;
-let knownStreams = new Set();
-let checkedStreams = new Set();
-
-// ── DOM ────────────────────────────────────────────────────────────────────
-const elName      = document.getElementById('speakerName');
+// ── DOM ───────────────────────────────────────────────────────────────────────
+const elName      = () => document.getElementById('speakerName').value.trim() || 'Speaker';
 const elDevReg    = document.getElementById('devRegState');
 const elDevId     = document.getElementById('devIdDisplay');
 const elDevStatus = document.getElementById('devStatusDisplay');
-const elConn      = document.getElementById('connState');
+const elStreamList= document.getElementById('streamList');
+const elAssigned  = document.getElementById('assignedStreams');
+const elStreamCnt = document.getElementById('streamCount');
+const elIce       = document.getElementById('iceState');
+const elAudio     = document.getElementById('audioState');
 const elWs        = document.getElementById('wsState');
 const elHb        = document.getElementById('hbState');
-const elIce       = document.getElementById('iceState');
-const elStreamCnt = document.getElementById('streamCount');
-const elStreamBdg = document.getElementById('streamCountBadge');
-const elStreamList= document.getElementById('streamList');
-const elAssigned  = document.getElementById('assignedList');
+const elSysDot    = document.getElementById('sysDot');
+const elSysText   = document.getElementById('sysText');
 const btnConnect  = document.getElementById('btnConnect');
-const btnDiscon   = document.getElementById('btnDiscon');
-const logEl       = document.getElementById('logBox');
-const sysDot      = document.getElementById('sysDot');
-const sysText     = document.getElementById('sysText');
+const btnDiscon   = document.getElementById('btnDisconnect');
 
-// ── helpers ────────────────────────────────────────────────────────────────
+// ── log ───────────────────────────────────────────────────────────────────────
+const logEl = document.getElementById('logBox');
 function log(msg, type='') {
   const d = document.createElement('div');
-  d.className = 'lg' + (type==='err'?' le':type==='warn'?' lw':'');
-  const t = new Date().toLocaleTimeString('en-US',{hour12:false});
+  d.className = 'lg' + (type==='err' ? ' le' : type==='warn' ? ' lw' : '');
+  const t = new Date().toLocaleTimeString('en-US', {hour12:false});
   d.innerHTML = `<span class="lt">[${t}]</span>${msg}`;
   logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
 }
 function setSys(text, level='idle') {
-  sysText.textContent = text;
-  sysDot.className = 'sys-dot ' + (level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
-}
-function setRings(active) {
-  ['ring1','ring2','ring3','ring4'].forEach(id => {
-    document.getElementById(id).classList.toggle('active', active);
-  });
-  document.getElementById('coreDot').classList.toggle('live', active);
+  elSysText.textContent = text;
+  elSysDot.className = 'sys-dot ' + (level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
 }
 
-// ── device register ────────────────────────────────────────────────────────
+// ── canvas visualizer ─────────────────────────────────────────────────────────
+const canvas = document.getElementById('viz');
+const ctx    = canvas.getContext('2d');
+let analyserNodes = [];
+function resizeCanvas() {
+  const r = canvas.parentNode.getBoundingClientRect();
+  const d = window.devicePixelRatio || 1;
+  canvas.width  = r.width  * d;
+  canvas.height = r.height * d;
+  ctx.setTransform(d,0,0,d,0,0);
+}
+window.addEventListener('resize', resizeCanvas);
+function vizLoop() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  if (analyserNodes.length === 0) {
+    ctx.fillStyle = 'rgba(0,240,255,0.15)';
+    ctx.fillRect(0, h/2-1, w, 2);
+  } else {
+    analyserNodes.forEach(an => {
+      const data = new Uint8Array(an.frequencyBinCount);
+      an.getByteFrequencyData(data);
+      const bars=60, step=Math.floor(data.length/bars), bw=w/bars, cy=h/2;
+      for (let i=0; i<bars; i++) {
+        let s=0; for(let j=0;j<step;j++) s+=data[i*step+j]||0;
+        const norm = Math.pow(s/step/255, 1.5);
+        const bh = Math.max(2, norm*(h*0.4));
+        ctx.fillStyle='#00f0ff'; ctx.shadowBlur=8*norm; ctx.shadowColor='#00f0ff';
+        ctx.fillRect(i*bw+1, cy-bh, bw-2, bh);
+        ctx.fillRect(i*bw+1, cy,    bw-2, bh);
+      }
+      ctx.shadowBlur=0;
+    });
+  }
+  requestAnimationFrame(vizLoop);
+}
+
+// ── render stream list ────────────────────────────────────────────────────────
+function renderStreamList() {
+  elStreamCnt.textContent = knownStreams.size;
+  if (knownStreams.size === 0) {
+    elStreamList.innerHTML = '<div class="empty-hint">no active streams</div>';
+    return;
+  }
+  elStreamList.innerHTML = '';
+  knownStreams.forEach(name => {
+    const div = document.createElement('div');
+    div.className = 'stream-item';
+    const cbId = 'cb_' + name;
+    div.innerHTML = `
+      <input type="checkbox" id="${cbId}" data-stream="${name}"
+             ${checkedStreams.has(name) || assignedStreams.includes(name) ? 'checked' : ''}>
+      <label for="${cbId}" class="sname">${name}</label>
+      <div class="gain-wrap">
+        <input type="range" min="0" max="2" step="0.05" value="1"
+               data-gain="${name}" title="Gain">
+        <span class="gain-val" id="gv_${name}">1.00x</span>
+      </div>`;
+    elStreamList.appendChild(div);
+    // checkbox → track checked set
+    div.querySelector('input[type=checkbox]').addEventListener('change', e => {
+      if (e.target.checked) checkedStreams.add(name);
+      else checkedStreams.delete(name);
+    });
+    // gain slider
+    div.querySelector('input[type=range]').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      document.getElementById('gv_'+name).textContent = v.toFixed(2)+'x';
+      if (gainNodes[name]) gainNodes[name].gain.value = v;
+    });
+  });
+}
+
+// ── render assigned streams ───────────────────────────────────────────────────
+function renderAssigned() {
+  if (assignedStreams.length === 0) {
+    elAssigned.innerHTML = '<span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);">none</span>';
+    return;
+  }
+  elAssigned.innerHTML = assignedStreams.map(s =>
+    `<span class="stream-chip">&#x25BA; ${s}</span>`).join('');
+}
+
+// ── device registration ───────────────────────────────────────────────────────
 async function registerDevice() {
-  const name = elName.value.trim() || 'Speaker';
+  const name = elName();
   const id   = deviceId || ('spk-' + Math.random().toString(36).slice(2,10));
   const res  = await fetch('/device/register', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ id, name, role: 'speaker' })
   });
-  if (!res.ok) throw new Error('register HTTP ' + res.status);
-  const dev = await res.json();
-  deviceId = dev.id;
-  elDevId.textContent     = dev.id.slice(0,12) + '...';
+  if (!res.ok) throw new Error('register failed ' + res.status);
+  const d = await res.json();
+  deviceId = d.id;
+  elDevId.textContent     = deviceId.slice(0,14) + '...';
   elDevStatus.textContent = 'ONLINE';
   elDevReg.textContent    = 'REGISTERED';
   elDevReg.style.color    = 'var(--neon-green)';
-  log('Device registered: ' + dev.name + ' [' + dev.id.slice(0,8) + ']');
+  log('Device registered: ' + name + ' [' + deviceId.slice(0,8) + ']');
 }
 
-// ── heartbeat ──────────────────────────────────────────────────────────────
+// ── heartbeat ─────────────────────────────────────────────────────────────────
 function startHb() {
   stopHb();
   hbTimer = setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN && deviceId) {
       ws.send(JSON.stringify({ type: 'heartbeat', device_id: deviceId }));
-      elHb.textContent = new Date().toLocaleTimeString('en-US',{hour12:false});
+      elHb.textContent = new Date().toLocaleTimeString('en-US', {hour12:false});
     }
   }, 10_000);
 }
 function stopHb() { if (hbTimer) { clearInterval(hbTimer); hbTimer = null; } }
 
-// ── WebSocket ──────────────────────────────────────────────────────────────
+// ── WebSocket ─────────────────────────────────────────────────────────────────
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-
-  ws.onopen = () => {
-    elWs.textContent = 'CONNECTED';
-    elWs.style.color = 'var(--neon-green)';
-    log('WS connected.');
-    if (deviceId) startHb();
-  };
-
+  ws.onopen  = () => { elWs.textContent = 'CONNECTED'; log('WS connected'); if(deviceId) startHb(); };
+  ws.onclose = () => { elWs.textContent = 'DISCONNECTED'; setTimeout(connectWS, 3000); };
+  ws.onerror = () => ws.close();
   ws.onmessage = (e) => {
     let msg; try { msg = JSON.parse(e.data); } catch { return; }
     if (msg.type === 'snapshot') {
       knownStreams = new Set(msg.streams || []);
-      renderStreamList();
-    } else if (msg.type === 'stream_added') {
-      knownStreams.add(msg.name); renderStreamList();
-    } else if (msg.type === 'stream_removed') {
-      knownStreams.delete(msg.name); renderStreamList();
-    } else if (msg.type === 'set_volume' && msg.device_id === deviceId) {
-      const v = parseFloat(msg.volume);
-      if (msg.stream) { if (gainNodes[msg.stream]) gainNodes[msg.stream].gain.value = v; }
-      else Object.values(gainNodes).forEach(g => g.gain.value = v);
-      log('Manager set volume: ' + Math.round(v*100) + '%', 'warn');
-    } else if (msg.type === 'route_changed' && msg.speaker_id === deviceId) {
-      // manager assigned a stream — update assigned display
-      refreshAssigned();
+      // find our device in snapshot to get assigned streams
+      if (deviceId) {
+        const me = (msg.devices || []).find(d => d.id === deviceId);
+        if (me) { assignedStreams = me.assigned_streams || []; renderAssigned(); }
+      }
+      renderStreamList(); return;
+    }
+    if (msg.type === 'stream_added')   { knownStreams.add(msg.name);    renderStreamList(); return; }
+    if (msg.type === 'stream_removed') { knownStreams.delete(msg.name); renderStreamList(); return; }
+    // manager assigned streams to this speaker
+    if (msg.type === 'route_changed' && msg.speaker_id === deviceId) {
+      if (msg.connected)  assignedStreams = [...new Set([...assignedStreams, msg.source])];
+      else                assignedStreams = assignedStreams.filter(s => s !== msg.source);
+      renderAssigned();
+      log('Manager ' + (msg.connected?'assigned':'removed') + ': ' + msg.source, 'warn');
+    }
+    // manager volume command
+    if (msg.type === 'set_volume' && msg.device_id === deviceId) {
+      const vol = parseFloat(msg.volume);
+      if (msg.stream) { if (gainNodes[msg.stream]) gainNodes[msg.stream].gain.value = vol; }
+      else { Object.values(gainNodes).forEach(g => g.gain.value = vol); }
+      log('Manager set volume: ' + Math.round(vol*100) + '%', 'warn');
     }
   };
-
-  ws.onclose = () => {
-    elWs.textContent = 'DISCONNECTED';
-    elWs.style.color = 'var(--neon-magenta)';
-    setTimeout(connectWS, 3000);
-  };
-  ws.onerror = () => ws.close();
 }
 
-// ── stream list UI ─────────────────────────────────────────────────────────
-function renderStreamList() {
-  elStreamBdg.textContent = knownStreams.size;
-  elStreamCnt.textContent = knownStreams.size;
-  if (knownStreams.size === 0) {
-    elStreamList.innerHTML = '<div class="empty">no active streams</div>'; return;
-  }
-  // preserve checkbox state
-  elStreamList.querySelectorAll('.si-cb').forEach(cb => {
-    if (cb.checked) checkedStreams.add(cb.dataset.stream);
-    else            checkedStreams.delete(cb.dataset.stream);
+// ── WebRTC connect ────────────────────────────────────────────────────────────
+function getSelectedStreams() {
+  const result = [];
+  document.querySelectorAll('#streamList input[type=checkbox]:checked').forEach(cb => {
+    result.push(cb.dataset.stream);
   });
-  elStreamList.innerHTML = '';
-  knownStreams.forEach(name => {
-    const item = document.createElement('div');
-    item.className = 'stream-item';
-    const cbId = 'cb-' + name;
-    item.innerHTML = `
-      <div class="si-top">
-        <input class="si-cb" type="checkbox" id="${cbId}" data-stream="${name}" ${checkedStreams.has(name)?'checked':''}>
-        <label class="si-name" for="${cbId}">● ${name}</label>
-      </div>
-      <div class="si-gain">
-        <span style="font-family:var(--font-mono);font-size:0.65rem;color:var(--text-muted);">GAIN</span>
-        <input type="range" min="0" max="2" step="0.05" value="1" data-gain="${name}">
-        <span class="si-gain-val" id="gv-${name}">1.00x</span>
-      </div>`;
-    elStreamList.appendChild(item);
-  });
-  elStreamList.querySelectorAll('input[type=range]').forEach(sl => {
-    sl.addEventListener('input', () => {
-      const sn = sl.dataset.gain;
-      const v  = parseFloat(sl.value);
-      document.getElementById('gv-'+sn).textContent = v.toFixed(2)+'x';
-      if (gainNodes[sn]) gainNodes[sn].gain.value = v;
-    });
-  });
-}
-
-function refreshAssigned() {
-  if (!deviceId) return;
-  fetch('/devices').then(r=>r.json()).then(devs => {
-    const me = devs.find(d => d.id === deviceId);
-    if (me && me.assigned_streams && me.assigned_streams.length > 0) {
-      elAssigned.innerHTML = me.assigned_streams.map(s =>
-        `<span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--neon-cyan);display:block;">▸ ${s}</span>`
-      ).join('');
-    } else {
-      elAssigned.textContent = 'none';
-    }
-  }).catch(()=>{});
-}
-
-// ── WebRTC connect ─────────────────────────────────────────────────────────
-function getSelected() {
-  return Array.from(elStreamList.querySelectorAll('.si-cb:checked')).map(c => c.dataset.stream);
+  return result;
 }
 
 async function connect() {
-  const streams = getSelected();
-  if (streams.length === 0) { log('Select at least one stream.', 'warn'); return; }
+  // get streams — prefer manager-assigned, fallback to checked
+  let streams = assignedStreams.length > 0 ? [...assignedStreams] : getSelectedStreams();
+  if (streams.length === 0) streams = getSelectedStreams();
+  if (streams.length === 0) { log('Select or wait for manager to assign streams.', 'warn'); return; }
 
   btnConnect.disabled = true;
   setSys('REGISTERING...', 'warn');
-  document.getElementById('vizLabel').textContent = 'REGISTERING';
 
   try { await registerDevice(); }
-  catch(e) { log('Register failed: '+e.message, 'err'); btnConnect.disabled=false; setSys('IDLE'); return; }
+  catch(e) { log('Register failed: '+e.message,'err'); btnConnect.disabled=false; setSys('ERROR','err'); return; }
 
-  startHb();
-
-  // CRITICAL: create + resume AudioContext inside user gesture
+  // AudioContext — must resume inside click handler (user gesture)
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
+  elAudio.textContent = audioCtx.state.toUpperCase();
 
-  setSys('CONNECTING...', 'warn');
-  elConn.textContent = 'CONNECTING';
-  elConn.style.color = 'var(--neon-yellow)';
-
-  if (pc) { pc.close(); pc = null; gainNodes = {}; }
+  if (pc) { pc.close(); pc = null; gainNodes = {}; analyserNodes = []; }
 
   pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
   streams.forEach(() => pc.addTransceiver('audio', { direction: 'recvonly' }));
 
   let trackIndex = 0;
   pc.ontrack = (e) => {
-    const streamName = streams[trackIndex++] || ('stream'+trackIndex);
+    const streamName = streams[trackIndex++] || ('stream_' + trackIndex);
     log('Track received: ' + streamName);
-    const mediaStream = e.streams[0] || new MediaStream([e.track]);
-    const src  = audioCtx.createMediaStreamSource(mediaStream);
-    const gain = audioCtx.createGain();
+    const ms     = e.streams[0] || new MediaStream([e.track]);
+    const source = audioCtx.createMediaStreamSource(ms);
+    const gain   = audioCtx.createGain();
+    const an     = audioCtx.createAnalyser(); an.fftSize = 256;
     gain.gain.value = 1.0;
-    src.connect(gain);
+    source.connect(gain);
+    gain.connect(an);
     gain.connect(audioCtx.destination);
     gainNodes[streamName] = gain;
+    analyserNodes.push(an);
+    document.getElementById('vizLabel').textContent = 'RX // ' + streamName;
+    setSys('PLAYING', 'live');
     if (audioCtx.state === 'suspended') audioCtx.resume();
+    elAudio.textContent = 'RUNNING';
+
+    // sync gain slider if present
+    const sl = document.querySelector(`[data-gain="${streamName}"]`);
+    if (sl) sl.addEventListener('input', () => { gain.gain.value = parseFloat(sl.value); });
   };
 
   pc.oniceconnectionstatechange = () => {
     const s = pc.iceConnectionState;
     elIce.textContent = s.toUpperCase();
-    const isUp = s === 'connected' || s === 'completed';
-    const isFail = s === 'failed' || s === 'closed';
-    elConn.textContent = isUp ? 'LIVE' : s.toUpperCase();
-    elConn.style.color = isUp ? 'var(--neon-green)' : isFail ? 'var(--neon-magenta)' : 'var(--neon-yellow)';
-    setSys(isUp ? 'LIVE' : 'CONNECTING', isUp ? 'live' : 'warn');
-    setRings(isUp);
-    document.getElementById('vizLabel').textContent = isUp ? 'RX_LIVE // ' + streams.join(', ') : 'RX_CONNECTING';
-    if (isFail) { btnConnect.disabled=false; btnDiscon.disabled=true; setRings(false); setSys('LINK LOST','err'); }
+    if (s === 'connected' || s === 'completed') { setSys('PLAYING','live'); isConnected=true; }
+    if (s === 'failed' || s === 'closed') {
+      setSys('LINK LOST','err'); isConnected=false;
+      btnConnect.disabled=false; btnDiscon.disabled=true;
+      log('Connection lost', 'err');
+    }
   };
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-  await new Promise(resolve => {
-    if (pc.iceGatheringState === 'complete') { resolve(); return; }
-    pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') resolve(); };
-    setTimeout(resolve, 5000);
+  await new Promise(r => {
+    if (pc.iceGatheringState==='complete') { r(); return; }
+    pc.onicegatheringstatechange = () => { if(pc.iceGatheringState==='complete') r(); };
+    setTimeout(r, 5000);
   });
 
+  setSys('NEGOTIATING...','warn');
   let answer;
   try {
     const res = await fetch('/receiver/offer', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ streams, sdp: pc.localDescription })
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw new Error('offer HTTP '+res.status);
     answer = await res.json();
-  } catch(e) {
-    log('Offer failed: '+e.message, 'err');
-    btnConnect.disabled = false; setSys('IDLE'); return;
-  }
+  } catch(e) { log('Offer failed: '+e.message,'err'); btnConnect.disabled=false; setSys('ERROR','err'); return; }
 
   await pc.setRemoteDescription(answer);
   if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-  log('Connected to: ' + streams.join(', '));
-  btnConnect.disabled = false;
-  btnDiscon.disabled  = false;
-  refreshAssigned();
+  startHb();
+  isConnected = true;
+  btnConnect.disabled  = false;
+  btnDiscon.disabled   = false;
+  log('Connected ✓ streams: ' + streams.join(', '));
 }
 
 async function disconnect() {
   stopHb();
+  isConnected = false;
   if (pc) { pc.close(); pc = null; }
-  gainNodes = {};
+  gainNodes = {}; analyserNodes = [];
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  elAudio.textContent = '—';
+  elIce.textContent   = '—';
+  document.getElementById('vizLabel').textContent = 'RX_STANDBY';
+  setSys('IDLE','idle');
   if (deviceId) {
-    await fetch('/device/'+deviceId, { method: 'DELETE' }).catch(()=>{});
+    await fetch('/device/'+deviceId, {method:'DELETE'}).catch(()=>{});
     deviceId = null;
   }
-  elDevReg.textContent = 'UNREGISTERED'; elDevReg.style.color = 'var(--text-muted)';
-  elDevId.textContent  = '—';
+  elDevId.textContent     = '—';
   elDevStatus.textContent = 'OFFLINE';
-  elConn.textContent = 'IDLE'; elConn.style.color = 'var(--neon-yellow)';
-  setRings(false); setSys('IDLE');
-  document.getElementById('vizLabel').textContent = 'RX_STANDBY';
-  btnConnect.disabled = false; btnDiscon.disabled = true;
-  elAssigned.textContent = 'none';
+  elDevReg.textContent    = 'UNREGISTERED';
+  elDevReg.style.color    = 'var(--text-muted)';
+  btnConnect.disabled  = false;
+  btnDiscon.disabled   = true;
   log('Disconnected.', 'warn');
 }
 
 btnConnect.addEventListener('click', connect);
 btnDiscon.addEventListener ('click', disconnect);
 
-// ── init ───────────────────────────────────────────────────────────────────
+resizeCanvas();
+requestAnimationFrame(vizLoop);
 connectWS();
-log('RECEIVER READY. Enter name and connect.');
+log('SPEAKER READY. Enter name and click Connect.');
 </script>
 </body>
 </html>

@@ -17,616 +17,587 @@
       --neon-green: #00ff41;
       --neon-orange: #ff8800;
       --neon-purple: #bf00ff;
-      --accent: var(--neon-magenta);
       --text-main: #d1d5db;
       --text-muted: #6b7280;
-      --grid-line: rgba(255,0,60,0.05);
+      --grid-line: rgba(0,240,255,0.06);
       --font-ui: 'Rajdhani', sans-serif;
       --font-mono: 'Share Tech Mono', monospace;
       --clip-a: polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);
       --clip-b: polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
     }
     *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#050608;color:var(--text-main);font-family:var(--font-ui);min-height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
-    body::after{content:" ";display:block;position:fixed;inset:0;background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.22) 50%),linear-gradient(90deg,rgba(255,0,0,0.05),rgba(0,0,255,0.02),rgba(255,0,60,0.04));background-size:100% 2px,3px 100%;pointer-events:none;z-index:999;}
-    .grid-bg{position:fixed;inset:0;z-index:-1;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:30px 30px;}
-    .hud{display:flex;flex-direction:column;height:100dvh;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:8px;}
+    html,body{height:100%;overflow:hidden;}
+    body{background:#050608;color:var(--text-main);font-family:var(--font-ui);
+         display:grid;grid-template-rows:52px 1fr;
+         grid-template-columns:260px 1fr 280px;
+         grid-template-areas:'hdr hdr hdr' 'left center right';}
+    body::after{content:" ";display:block;position:fixed;inset:0;
+      background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.22) 50%),
+                 linear-gradient(90deg,rgba(255,0,0,0.04),rgba(0,255,0,0.02),rgba(0,0,255,0.04));
+      background-size:100% 2px,3px 100%;pointer-events:none;z-index:999;}
+    .grid-bg{position:fixed;inset:0;z-index:-1;
+      background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),
+                       linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
+      background-size:30px 30px;}
 
-    /* header */
-    .header-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:var(--bg-panel);border:1px solid var(--neon-magenta);border-left:4px solid var(--neon-magenta);clip-path:var(--clip-a);box-shadow:0 0 14px rgba(255,0,60,0.14);flex-shrink:0;}
-    .brand h1{font-size:1.4rem;letter-spacing:3px;color:var(--neon-magenta);text-transform:uppercase;line-height:1;}
-    .brand span{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);}
-    .header-right{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:0.8rem;}
-    .role-badge{padding:3px 10px;border:1px solid var(--neon-magenta);color:var(--neon-magenta);font-size:0.7rem;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .nav-link{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);text-decoration:none;padding:3px 8px;border:1px solid rgba(255,0,60,0.2);transition:all 0.15s;}
-    .nav-link:hover{color:var(--neon-magenta);border-color:var(--neon-magenta);}
-    .ws-badge{font-family:var(--font-mono);font-size:0.7rem;padding:3px 10px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .ws-ok  {border:1px solid var(--neon-green);color:var(--neon-green);}
-    .ws-err {border:1px solid var(--neon-magenta);color:var(--neon-magenta);}
-    .ws-wait{border:1px solid var(--text-muted);color:var(--text-muted);}
-    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+    /* ── header ── */
+    header{grid-area:hdr;display:flex;align-items:center;padding:0 14px;gap:12px;
+           background:var(--bg-panel);border-bottom:1px solid var(--neon-cyan);
+           box-shadow:0 0 14px rgba(0,240,255,0.12);}
+    .brand h1{font-size:1.1rem;letter-spacing:3px;color:var(--neon-cyan);text-transform:uppercase;}
+    .brand span{font-family:var(--font-mono);font-size:0.65rem;color:var(--text-muted);}
+    .hdr-right{display:flex;align-items:center;gap:10px;margin-left:auto;font-family:var(--font-mono);font-size:0.72rem;}
+    .nav-link{color:var(--text-muted);text-decoration:none;padding:2px 7px;border:1px solid rgba(0,240,255,0.2);}
+    .nav-link:hover{color:var(--neon-cyan);border-color:var(--neon-cyan);}
+    .ws-badge{padding:2px 9px;font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;
+              clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);}
+    .ws-ok  {background:rgba(0,255,65,0.1); border:1px solid var(--neon-green);color:var(--neon-green);}
+    .ws-err {background:rgba(255,0,60,0.1); border:1px solid var(--neon-magenta);color:var(--neon-magenta);}
+    .ws-wait{background:rgba(107,114,128,0.1);border:1px solid var(--text-muted);color:var(--text-muted);}
 
-    /* 3-column layout */
-    .core{display:flex;flex:1;gap:8px;min-height:0;}
-    .col{display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
-    .col-left {width:240px;flex-shrink:0;}
-    .col-center{flex:1;min-width:0;}
-    .col-right {width:260px;flex-shrink:0;}
+    /* ── panels ── */
+    .panel-wrap{overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px;
+                border-right:1px solid rgba(0,240,255,0.08);}
+    #panelLeft  {grid-area:left;}
+    #panelCenter{grid-area:center;border-right:none;padding:10px;overflow:hidden;display:flex;flex-direction:column;gap:8px;}
+    #panelRight {grid-area:right;border-right:none;border-left:1px solid rgba(0,240,255,0.08);}
+    .panel-title{font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-cyan);
+                 letter-spacing:2px;text-transform:uppercase;
+                 padding-bottom:6px;border-bottom:1px dashed rgba(0,240,255,0.2);margin-bottom:6px;}
 
-    /* panels */
-    .panel{background:var(--bg-panel);border:1px solid rgba(255,0,60,0.18);padding:12px;clip-path:var(--clip-a);}
-    .panel-hdr{font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-magenta);text-transform:uppercase;border-bottom:1px dashed rgba(255,0,60,0.25);padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}
-    .panel-cyan{border-color:rgba(0,240,255,0.18);}
-    .panel-cyan .panel-hdr{color:var(--neon-cyan);border-bottom-color:rgba(0,240,255,0.25);}
-    .panel-orange{border-color:rgba(255,136,0,0.2);}
-    .panel-orange .panel-hdr{color:var(--neon-orange);border-bottom-color:rgba(255,136,0,0.3);}
-
-    /* device cards */
-    .dev-card{border:1px solid rgba(255,0,60,0.2);padding:8px 10px;cursor:pointer;display:flex;flex-direction:column;gap:4px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);transition:border-color 0.15s,background 0.15s;}
-    .dev-card:hover{border-color:rgba(255,0,60,0.5);background:rgba(255,0,60,0.04);}
-    .dev-card.selected{border-color:var(--neon-magenta);background:rgba(255,0,60,0.06);}
-    .dev-card.offline{opacity:0.45;filter:grayscale(0.7);}
-    .dc-row{display:flex;align-items:center;gap:6px;}
-    .dc-name{flex:1;font-family:var(--font-mono);font-size:0.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .dc-role{font-size:0.62rem;padding:1px 5px;clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px);text-transform:uppercase;font-family:var(--font-mono);}
-    .role-mic    {border:1px solid #8b5cf6;color:#8b5cf6;background:rgba(139,92,246,0.1);}
-    .role-speaker{border:1px solid var(--neon-cyan);color:var(--neon-cyan);background:rgba(0,240,255,0.06);}
-    .role-manager{border:1px solid var(--neon-magenta);color:var(--neon-magenta);background:rgba(255,0,60,0.06);}
-    .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+    /* ── device cards ── */
+    .dev-card{background:rgba(10,12,16,0.92);border:1px solid rgba(0,240,255,0.14);
+              padding:10px;cursor:pointer;transition:border-color 0.15s;
+              clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);}
+    .dev-card:hover{border-color:rgba(0,240,255,0.5);}
+    .dev-card.selected{border-color:var(--neon-cyan);box-shadow:0 0 10px rgba(0,240,255,0.15);}
+    .dev-card.offline{border-color:rgba(107,114,128,0.25);opacity:0.55;}
+    .dc-top{display:flex;align-items:center;gap:7px;}
+    .dc-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
     .dot-on  {background:var(--neon-green);box-shadow:0 0 5px var(--neon-green);}
-    .dot-off {background:#374151;}
-    .dot-live{background:var(--neon-cyan);box-shadow:0 0 6px var(--neon-cyan);animation:blink 1.4s infinite;}
-    .dc-meta{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);}
-    .stream-chip{display:inline-block;font-size:0.6rem;padding:1px 5px;border:1px solid rgba(0,240,255,0.25);color:var(--neon-cyan);margin-right:3px;font-family:var(--font-mono);}
+    .dot-off {background:var(--text-muted);}
+    .dot-live{background:var(--neon-cyan);box-shadow:0 0 7px var(--neon-cyan);animation:blink 1.2s ease-in-out infinite;}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+    .dc-name{flex:1;font-size:0.88rem;font-weight:700;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .dc-role{font-family:var(--font-mono);font-size:0.6rem;padding:1px 5px;letter-spacing:1px;
+             text-transform:uppercase;clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px);}
+    .role-mic    {background:rgba(191,0,255,0.12);border:1px solid var(--neon-purple);color:var(--neon-purple);}
+    .role-speaker{background:rgba(0,240,255,0.08);border:1px solid var(--neon-cyan);color:var(--neon-cyan);}
+    .role-manager{background:rgba(252,238,10,0.08);border:1px solid var(--neon-yellow);color:var(--neon-yellow);}
+    .dc-meta{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);margin-top:3px;}
+    .dc-chips{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+    .stream-chip{font-family:var(--font-mono);font-size:0.6rem;padding:1px 5px;
+                 background:rgba(0,240,255,0.06);border:1px solid rgba(0,240,255,0.2);color:var(--neon-cyan);
+                 clip-path:polygon(3px 0,100% 0,100% calc(100% - 3px),calc(100% - 3px) 100%,0 100%,0 3px);}
 
-    /* diagram canvas area */
-    .diagram-wrap{flex:1;position:relative;background:radial-gradient(circle at 50% 50%,rgba(255,0,60,0.03) 0%,transparent 70%),#000;border:1px solid rgba(255,0,60,0.15);clip-path:var(--clip-b);min-height:0;overflow:hidden;}
-    #diagram{width:100%;height:100%;display:block;cursor:crosshair;}
-    .diagram-hint{position:absolute;bottom:10px;left:14px;font-family:var(--font-mono);font-size:0.68rem;color:var(--text-muted);pointer-events:none;}
-    .diagram-title{position:absolute;top:10px;left:14px;font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-magenta);opacity:0.7;pointer-events:none;}
+    /* ── diagram ── */
+    #diagram{flex:1;background:radial-gradient(circle at 50% 50%,rgba(0,240,255,0.04) 0%,transparent 65%),#000;
+             border:1px solid rgba(0,240,255,0.15);clip-path:var(--clip-b);position:relative;overflow:hidden;}
+    #diagramSvg{width:100%;height:100%;}
+    .diag-hint{position:absolute;bottom:10px;left:14px;font-family:var(--font-mono);
+               font-size:0.65rem;color:var(--neon-cyan);opacity:0.5;pointer-events:none;}
+    .diag-mode{position:absolute;top:10px;right:14px;font-family:var(--font-mono);
+               font-size:0.68rem;color:var(--neon-yellow);pointer-events:none;}
 
-    /* right panel detail */
-    .dk{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;}
-    .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);}
-    .detail-section{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+    /* ── right panel detail ── */
+    .detail-section{display:flex;flex-direction:column;gap:6px;}
+    .detail-label{font-family:var(--font-mono);font-size:0.65rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;}
+    .detail-val{font-size:0.88rem;font-weight:700;color:var(--text-main);}
     .vol-row{display:flex;align-items:center;gap:8px;}
-    .vol-row input[type=range]{flex:1;accent-color:var(--neon-magenta);cursor:pointer;}
-    .vol-val{font-family:var(--font-mono);font-size:0.75rem;color:var(--neon-magenta);min-width:38px;text-align:right;}
-    .assign-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid rgba(0,240,255,0.12);margin-bottom:4px;clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);}
-    .assign-item input[type=checkbox]{accent-color:var(--neon-cyan);width:14px;height:14px;cursor:pointer;}
-    .assign-item label{flex:1;font-family:var(--font-mono);font-size:0.78rem;color:var(--text-main);cursor:pointer;}
-    .btn-sm{padding:5px 10px;font-size:0.7rem;}
-    .btn-danger{border-color:var(--neon-magenta);color:var(--neon-magenta);}
-    .btn-danger:hover{background:var(--neon-magenta);color:#000;}
-    .empty-msg{font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);padding:12px 0;text-align:center;}
+    .vol-row input[type=range]{flex:1;accent-color:var(--neon-cyan);cursor:pointer;}
+    .vol-val{font-family:var(--font-mono);font-size:0.75rem;color:var(--neon-cyan);min-width:38px;text-align:right;}
+    .assign-row{display:flex;align-items:center;gap:8px;padding:5px 7px;
+                background:rgba(0,0,0,0.4);border:1px solid rgba(0,240,255,0.1);
+                clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);}
+    .assign-row input[type=checkbox]{accent-color:var(--neon-cyan);width:14px;height:14px;cursor:pointer;}
+    .assign-row label{flex:1;font-family:var(--font-mono);font-size:0.75rem;color:var(--text-main);cursor:pointer;}
+    .btn-remove{width:100%;padding:6px;background:rgba(255,0,60,0.06);border:1px solid var(--neon-magenta);
+                color:var(--neon-magenta);font-family:var(--font-mono);font-size:0.72rem;letter-spacing:1px;
+                cursor:pointer;text-transform:uppercase;transition:all 0.15s;
+                clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);}
+    .btn-remove:hover{background:var(--neon-magenta);color:#fff;}
+    .empty-hint{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);text-align:center;padding:16px;}
+    .sep{border:none;border-top:1px dashed rgba(0,240,255,0.1);margin:4px 0;}
 
-    @media(max-width:1000px){
-      .core{flex-direction:column;}
-      .col-left,.col-right{width:100%;}
-      .diagram-wrap{min-height:280px;}
+    @media(max-width:900px){
+      body{grid-template-columns:1fr;grid-template-rows:52px auto auto auto;
+           grid-template-areas:'hdr' 'left' 'center' 'right';
+           overflow:auto;height:auto;}
+      #panelCenter{min-height:50vw;}
     }
   </style>
 </head>
 <body>
 <div class="grid-bg"></div>
-<div class="hud">
 
-  <header class="header-bar">
-    <div class="brand">
-      <h1>Audio_Sync_LINK</h1>
-      <span>// MANAGER — Y4Z.DEV</span>
-    </div>
-    <div class="header-right">
-      <a class="nav-link" href="/sender">▶ Sender</a>
-      <a class="nav-link" href="/receiver">▶ Receiver</a>
-      <span class="role-badge">MANAGER</span>
-      <span id="wsBadge" class="ws-badge ws-wait">CONNECTING</span>
-    </div>
-  </header>
+<header>
+  <div class="brand">
+    <h1>Audio_Sync_LINK</h1>
+    <span>// MANAGER — Y4Z.DEV</span>
+  </div>
+  <div class="hdr-right">
+    <a class="nav-link" href="/sender">&#x25B6; Sender</a>
+    <a class="nav-link" href="/receiver">&#x25B6; Speaker</a>
+    <span id="wsBadge" class="ws-badge ws-wait">connecting&#x2026;</span>
+  </div>
+</header>
 
-  <main class="core">
+<!-- LEFT: device list -->
+<div class="panel-wrap" id="panelLeft">
+  <div class="panel-title">&#x25A0; Devices</div>
+  <div id="deviceList"><div class="empty-hint">no devices</div></div>
+</div>
 
-    <!-- LEFT: device list -->
-    <div class="col col-left">
-      <div class="panel">
-        <div class="panel-hdr"><span>[01] Devices</span><span id="devCountBadge" style="color:var(--neon-yellow);">0</span></div>
-        <div id="devList"><div class="empty-msg">no devices</div></div>
-      </div>
-      <div class="panel panel-cyan">
-        <div class="panel-hdr"><span>[02] Streams</span><span id="streamCountBadge" style="color:var(--neon-yellow);">0</span></div>
-        <div id="streamListEl"><div class="empty-msg">no streams</div></div>
-      </div>
-    </div>
+<!-- CENTER: diagram -->
+<div id="panelCenter">
+  <div class="panel-title" style="display:flex;justify-content:space-between;">
+    <span>&#x25A0; Routing Diagram</span>
+    <span id="diagStreamCount" style="color:var(--neon-yellow);">0 streams</span>
+  </div>
+  <div id="diagram">
+    <svg id="diagramSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="diag-hint" id="diagHint">click MIC &#x2192; click SPEAKER to route</div>
+    <div class="diag-mode" id="diagMode">MODE: IDLE</div>
+  </div>
+</div>
 
-    <!-- CENTER: diagram -->
-    <div class="col col-center">
-      <div class="panel" style="padding:6px;">
-        <div class="panel-hdr" style="margin-bottom:4px;"><span>[03] Routing Diagram</span><span id="diagramHint" style="color:var(--text-muted);font-size:0.65rem;">click source → speaker to connect</span></div>
-      </div>
-      <div class="diagram-wrap" style="flex:1;">
-        <div class="diagram-title">// SIGNAL FLOW</div>
-        <svg id="diagram" xmlns="http://www.w3.org/2000/svg"></svg>
-        <div class="diagram-hint" id="diagramStatus">idle — no routes</div>
-      </div>
-    </div>
-
-    <!-- RIGHT: device detail -->
-    <div class="col col-right">
-      <div class="panel panel-orange" id="detailPanel">
-        <div class="panel-hdr"><span>[04] Device Detail</span></div>
-        <div id="detailContent"><div class="empty-msg">select a device</div></div>
-      </div>
-    </div>
-
-  </main>
+<!-- RIGHT: device detail -->
+<div class="panel-wrap" id="panelRight">
+  <div class="panel-title">&#x25A0; Device Detail</div>
+  <div id="deviceDetail"><div class="empty-hint">select a device</div></div>
 </div>
 
 <script>
 'use strict';
-
-// ── constants ──────────────────────────────────────────────────────────────
+// ── state ─────────────────────────────────────────────────────────────────────
 const OFFLINE_MS = 15_000;
-
-// ── state ──────────────────────────────────────────────────────────────────
-let devices = {};       // id → DeviceInfo
-let streams = new Set();
+let devices    = {};  // id → DeviceInfo
+let streams    = new Set();
 let selectedId = null;
-let ws = null;
-// diagram interaction: pending source click waiting for speaker click
-let pendingSource = null;
+let ws         = null;
+// diagram interaction
+let pendingMic = null;  // id of mic clicked, waiting for speaker click
 
-// ── DOM ────────────────────────────────────────────────────────────────────
-const elDevList     = document.getElementById('devList');
-const elStreamList  = document.getElementById('streamListEl');
-const elDevCnt      = document.getElementById('devCountBadge');
-const elStmCnt      = document.getElementById('streamCountBadge');
-const elDetail      = document.getElementById('detailContent');
-const elWsBadge     = document.getElementById('wsBadge');
-const elDiagStatus  = document.getElementById('diagramStatus');
-const svgEl         = document.getElementById('diagram');
+// ── DOM ───────────────────────────────────────────────────────────────────────
+const elDevList   = document.getElementById('deviceList');
+const elDetail    = document.getElementById('deviceDetail');
+const elWsBadge   = document.getElementById('wsBadge');
+const elDiagSvg   = document.getElementById('diagramSvg');
+const elDiagHint  = document.getElementById('diagHint');
+const elDiagMode  = document.getElementById('diagMode');
+const elStreamCnt = document.getElementById('diagStreamCount');
 
-// ── helpers ────────────────────────────────────────────────────────────────
-function isOffline(d) { return d.last_seen && (Date.now() - d.last_seen) > OFFLINE_MS; }
-
-function dotClass(d) {
-  if (isOffline(d))        return 'dot dot-off';
-  if (d.status === 'live') return 'dot dot-live';
-  return 'dot dot-on';
+// ── helpers ───────────────────────────────────────────────────────────────────
+function isOffline(dev) { return dev.last_seen && (Date.now() - dev.last_seen) > OFFLINE_MS; }
+function dotClass(dev) {
+  if (isOffline(dev))          return 'dot-off';
+  if (dev.status === 'live')   return 'dot-live';
+  return 'dot-on';
 }
-function roleClass(r) {
-  return ({mic:'role-mic',speaker:'role-speaker',manager:'role-manager'})[r]||'role-manager';
-}
-function seenAgo(d) {
-  if (!d.last_seen) return 'never';
-  const s = Math.round((Date.now()-d.last_seen)/1000);
-  return s < 60 ? s+'s' : Math.round(s/60)+'m';
-}
+function roleClass(r) { return {mic:'role-mic',speaker:'role-speaker',manager:'role-manager'}[r]||'role-manager'; }
 
-// ── render device list ─────────────────────────────────────────────────────
+// ── render device list ────────────────────────────────────────────────────────
 function renderDevices() {
   const list = Object.values(devices);
-  elDevCnt.textContent = list.length;
-  if (list.length === 0) { elDevList.innerHTML = '<div class="empty-msg">no devices</div>'; return; }
+  if (list.length === 0) { elDevList.innerHTML = '<div class="empty-hint">no devices</div>'; return; }
   elDevList.innerHTML = '';
   list.forEach(dev => {
-    const offline = isOffline(dev);
+    const off  = isOffline(dev);
     const card = document.createElement('div');
-    card.className = 'dev-card' + (offline?' offline':'') + (dev.id===selectedId?' selected':'');
+    card.className = 'dev-card' + (off?' offline':'') + (dev.id===selectedId?' selected':'');
     card.dataset.id = dev.id;
     const chips = (dev.assigned_streams||[]).map(s=>`<span class="stream-chip">${s}</span>`).join('');
+    const ago   = dev.last_seen ? Math.round((Date.now()-dev.last_seen)/1000)+'s ago' : 'never';
     card.innerHTML = `
-      <div class="dc-row">
-        <span class="${dotClass(dev)}"></span>
+      <div class="dc-top">
+        <span class="dc-dot ${dotClass(dev)}"></span>
         <span class="dc-name">${dev.name}</span>
         <span class="dc-role ${roleClass(dev.role)}">${dev.role}</span>
       </div>
-      <div class="dc-meta">vol:${Math.round(dev.volume*100)}% · ${seenAgo(dev)} · ${dev.id.slice(0,6)}…</div>
-      ${chips?'<div style="margin-top:2px;">'+chips+'</div>':''}`;
+      <div class="dc-meta">vol: ${(dev.volume*100).toFixed(0)}% &middot; ${ago} &middot; ${dev.id.slice(0,8)}&hellip;</div>
+      ${chips?'<div class="dc-chips">'+chips+'</div>':''}`;
     card.addEventListener('click', () => selectDevice(dev.id));
     elDevList.appendChild(card);
   });
 }
 
-// ── render stream list ─────────────────────────────────────────────────────
-function renderStreams() {
-  elStmCnt.textContent = streams.size;
-  if (streams.size === 0) { elStreamList.innerHTML = '<div class="empty-msg">no streams</div>'; return; }
-  elStreamList.innerHTML = '';
-  streams.forEach(name => {
-    const row = document.createElement('div');
-    row.style.cssText = 'font-family:var(--font-mono);font-size:0.78rem;color:var(--neon-cyan);padding:4px 0;display:flex;align-items:center;gap:6px;';
-    row.innerHTML = `<span style="color:var(--neon-green);animation:blink 1.4s infinite;">●</span>${name}`;
-    elStreamList.appendChild(row);
+// ── render diagram ────────────────────────────────────────────────────────────
+function renderDiagram() {
+  const svg = elDiagSvg;
+  const W = svg.clientWidth  || svg.parentElement.clientWidth  || 600;
+  const H = svg.clientHeight || svg.parentElement.clientHeight || 400;
+  svg.innerHTML = '';
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  elStreamCnt.textContent = streams.size + ' stream' + (streams.size===1?'':'s');
+
+  // defs: arrow marker + glow filter
+  svg.innerHTML = `
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="rgba(0,240,255,0.8)"/>
+      </marker>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="glow-hot" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="5" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>`;
+
+  const mics = Object.values(devices).filter(d => d.role==='mic');
+  const spks = Object.values(devices).filter(d => d.role==='speaker');
+  const cx   = W/2, cy = H/2;
+  const LX   = 90,  RX = W-90;
+  const NODE_R = 28;
+
+  // position nodes
+  const nodePos = {};  // id → {x,y}
+
+  function placeNodes(list, x) {
+    const gap = Math.min(80, (H-60) / Math.max(list.length,1));
+    const totalH = (list.length-1)*gap;
+    const startY = cy - totalH/2;
+    list.forEach((d,i) => { nodePos[d.id] = {x, y: startY + i*gap}; });
+  }
+  placeNodes(mics, LX);
+  placeNodes(spks, RX);
+  nodePos['__router__'] = {x: cx, y: cy};
+
+  // draw connection lines (speaker.assigned_streams → find mic with that stream name)
+  const streamToMicId = {};
+  mics.forEach(m => {
+    // mic streams are inferred from stream registry: stream name === mic stream name
+    streams.forEach(s => {
+      // if stream name starts with or equals mic name (heuristic), associate
+      if (!streamToMicId[s]) streamToMicId[s] = m.id;
+    });
+  });
+  // better: use stream name directly if only one mic, else map by order
+  if (mics.length === 1) {
+    streams.forEach(s => { streamToMicId[s] = mics[0].id; });
+  }
+
+  // draw routes: speaker assigned_streams → back to originating mic
+  const drawnRoutes = new Set();
+  spks.forEach(spk => {
+    (spk.assigned_streams||[]).forEach(sname => {
+      const micId = streamToMicId[sname];
+      if (!micId || !nodePos[micId] || !nodePos[spk.id]) return;
+      const key = micId+'->'+spk.id+'::'+sname;
+      if (drawnRoutes.has(key)) return;
+      drawnRoutes.add(key);
+      const p1 = nodePos[micId], p2 = nodePos[spk.id];
+      const mx1 = p1.x + NODE_R + 10, mx2 = p2.x - NODE_R - 10;
+      const cmx = (mx1+mx2)/2;
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', `M${mx1},${p1.y} C${cmx},${p1.y} ${cmx},${p2.y} ${mx2},${p2.y}`);
+      path.setAttribute('fill','none');
+      path.setAttribute('stroke','rgba(0,240,255,0.55)');
+      path.setAttribute('stroke-width','1.5');
+      path.setAttribute('marker-end','url(#arr)');
+      path.setAttribute('filter','url(#glow)');
+      path.style.cursor = 'pointer';
+      path.addEventListener('click', () => disconnectRoute(micId, spk.id, sname));
+      // animated dash
+      const pLen = path.getTotalLength ? path.getTotalLength() : 200;
+      path.setAttribute('stroke-dasharray', pLen);
+      path.setAttribute('stroke-dashoffset', pLen);
+      path.style.animation = 'dashIn 0.6s ease forwards';
+      svg.appendChild(path);
+      // route label
+      const lx = (mx1+mx2)/2, ly = (p1.y+p2.y)/2 - 8;
+      const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('x', lx); txt.setAttribute('y', ly);
+      txt.setAttribute('text-anchor','middle');
+      txt.setAttribute('font-family',"'Share Tech Mono',monospace");
+      txt.setAttribute('font-size','9');
+      txt.setAttribute('fill','rgba(0,240,255,0.6)');
+      txt.textContent = sname;
+      svg.appendChild(txt);
+    });
+  });
+
+  // draw router node (center)
+  const rn = document.createElementNS('http://www.w3.org/2000/svg','g');
+  rn.innerHTML = `
+    <polygon points="${cx},${cy-22} ${cx+22},${cy} ${cx},${cy+22} ${cx-22},${cy}"
+             fill="rgba(0,240,255,0.06)" stroke="rgba(0,240,255,0.5)" stroke-width="1.5" filter="url(#glow)"/>
+    <text x="${cx}" y="${cy+4}" text-anchor="middle" font-family="'Share Tech Mono',monospace"
+          font-size="8" fill="rgba(0,240,255,0.8)">ROUTER</text>`;
+  svg.appendChild(rn);
+
+  // draw pending mic selection highlight
+  if (pendingMic && nodePos[pendingMic]) {
+    const pp = nodePos[pendingMic];
+    const ring = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    ring.setAttribute('cx',pp.x); ring.setAttribute('cy',pp.y); ring.setAttribute('r', NODE_R+6);
+    ring.setAttribute('fill','none'); ring.setAttribute('stroke',"rgba(252,238,10,0.8)"); ring.setAttribute('stroke-width','2');
+    ring.setAttribute('stroke-dasharray','4 3'); ring.setAttribute('filter','url(#glow-hot)');
+    svg.appendChild(ring);
+  }
+
+  // draw mic nodes
+  mics.forEach(dev => {
+    const p   = nodePos[dev.id];
+    const off = isOffline(dev);
+    const col = off ? '#6b7280' : (dev.id===pendingMic ? '#fcee0a' : '#bf00ff');
+    const g   = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.style.cursor = 'pointer';
+    const hexPts = hexPoints(p.x, p.y, NODE_R);
+    g.innerHTML = `
+      <polygon points="${hexPts}" fill="rgba(191,0,255,0.08)" stroke="${col}"
+               stroke-width="${dev.id===pendingMic?2.5:1.5}" filter="url(#${off?'':'glow'})"/>
+      <text x="${p.x}" y="${p.y-2}" text-anchor="middle" font-family="'Share Tech Mono',monospace"
+            font-size="9" fill="${col}">MIC</text>
+      <text x="${p.x}" y="${p.y+10}" text-anchor="middle" font-family="'Rajdhani',sans-serif"
+            font-size="11" font-weight="700" fill="${off?'#6b7280':'#d1d5db'}">${truncate(dev.name,10)}</text>`;
+    g.addEventListener('click', () => onMicClick(dev.id));
+    svg.appendChild(g);
+  });
+
+  // draw speaker nodes
+  spks.forEach(dev => {
+    const p   = nodePos[dev.id];
+    const off = isOffline(dev);
+    const col = off ? '#6b7280' : '#00f0ff';
+    const g   = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.style.cursor = 'pointer';
+    g.innerHTML = `
+      <rect x="${p.x-NODE_R}" y="${p.y-NODE_R}" width="${NODE_R*2}" height="${NODE_R*2}"
+            rx="4" fill="rgba(0,240,255,0.06)" stroke="${col}"
+            stroke-width="1.5" filter="url(#${off?'':'glow'})"/>
+      <text x="${p.x}" y="${p.y-2}" text-anchor="middle" font-family="'Share Tech Mono',monospace"
+            font-size="9" fill="${col}">SPK</text>
+      <text x="${p.x}" y="${p.y+10}" text-anchor="middle" font-family="'Rajdhani',sans-serif"
+            font-size="11" font-weight="700" fill="${off?'#6b7280':'#d1d5db'}">${truncate(dev.name,10)}</text>`;
+    g.addEventListener('click', () => onSpkClick(dev.id));
+    svg.appendChild(g);
+  });
+
+  // empty state
+  if (mics.length===0 && spks.length===0) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',cx); t.setAttribute('y',cy);
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('font-family',"'Share Tech Mono',monospace");
+    t.setAttribute('font-size','13');
+    t.setAttribute('fill','rgba(107,114,128,0.6)');
+    t.textContent = 'no devices online';
+    svg.appendChild(t);
+  }
+}
+
+// css anim for lines
+const styleEl = document.createElement('style');
+styleEl.textContent = `
+  @keyframes dashIn { to { stroke-dashoffset: 0; } }
+  @keyframes routePulse { 0%,100%{stroke-opacity:0.55} 50%{stroke-opacity:1} }
+`;
+document.head.appendChild(styleEl);
+
+function hexPoints(cx, cy, r) {
+  return Array.from({length:6},(_,i)=>{
+    const a = Math.PI/180*(60*i-30);
+    return `${(cx+r*Math.cos(a)).toFixed(1)},${(cy+r*Math.sin(a)).toFixed(1)}`;
+  }).join(' ');
+}
+function truncate(s,n) { return s.length>n ? s.slice(0,n-1)+'…' : s; }
+
+// ── diagram interactions ──────────────────────────────────────────────────────
+function onMicClick(id) {
+  if (isOffline(devices[id])) return;
+  pendingMic = id;
+  elDiagMode.textContent = 'MODE: SELECT SPEAKER';
+  elDiagHint.textContent = 'now click a SPEAKER node to route';
+  selectDevice(id);
+  renderDiagram();
+}
+
+function onSpkClick(id) {
+  if (isOffline(devices[id])) return;
+  if (pendingMic) {
+    // find what stream(s) the mic has active
+    const micStreams = Array.from(streams).filter(s => {
+      // use the stream name heuristic — any stream counts from that mic
+      return true; // we'll let manager pick all current streams from mic
+    });
+    // just use all active streams as the route source
+    const toAssign = Array.from(streams);
+    if (toAssign.length === 0) { pendingMic=null; elDiagMode.textContent='MODE: IDLE'; return; }
+    const spk = devices[id];
+    const current = new Set(spk.assigned_streams||[]);
+    toAssign.forEach(s => current.add(s));
+    fetch('/device/'+id+'/streams', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ streams: Array.from(current) })
+    }).then(() => {
+      if (devices[id]) devices[id].assigned_streams = Array.from(current);
+      pendingMic = null;
+      elDiagMode.textContent = 'MODE: IDLE';
+      elDiagHint.textContent = 'click MIC → click SPEAKER to route';
+      renderDiagram();
+      if (selectedId === id) renderDetail();
+    });
+  } else {
+    selectDevice(id);
+  }
+}
+
+function disconnectRoute(micId, spkId, streamName) {
+  const spk = devices[spkId];
+  if (!spk) return;
+  const newStreams = (spk.assigned_streams||[]).filter(s => s !== streamName);
+  fetch('/device/'+spkId+'/streams', {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ streams: newStreams })
+  }).then(() => {
+    if (devices[spkId]) devices[spkId].assigned_streams = newStreams;
+    renderDiagram();
+    if (selectedId===spkId) renderDetail();
   });
 }
 
-// ── select device ──────────────────────────────────────────────────────────
+// ── device detail ─────────────────────────────────────────────────────────────
 function selectDevice(id) {
   selectedId = id;
   renderDevices();
   renderDetail();
-  drawDiagram();
 }
 
-// ── detail panel ───────────────────────────────────────────────────────────
 function renderDetail() {
   const dev = devices[selectedId];
-  if (!dev) { elDetail.innerHTML = '<div class="empty-msg">select a device</div>'; return; }
+  if (!dev) { elDetail.innerHTML = '<div class="empty-hint">select a device</div>'; return; }
 
+  const off = isOffline(dev);
   const assignRows = Array.from(streams).map(s => {
-    const chk = (dev.assigned_streams||[]).includes(s);
-    return `<div class="assign-item">
-      <input type="checkbox" id="asgn-${s}" data-stream="${s}" ${chk?'checked':''}>
-      <label for="asgn-${s}">${s}</label>
+    const chk = (dev.assigned_streams||[]).includes(s) ? 'checked' : '';
+    return `<div class="assign-row">
+      <input type="checkbox" id="asgn_${s}" data-stream="${s}" ${chk}>
+      <label for="asgn_${s}">${s}</label>
     </div>`;
   }).join('');
 
   elDetail.innerHTML = `
+    <hr class="sep">
     <div class="detail-section">
-      <div class="dk">NAME</div>
-      <div class="dv">${dev.name} <span class="dc-role ${roleClass(dev.role)}" style="display:inline;">${dev.role}</span></div>
+      <div class="detail-label">Name</div>
+      <div class="detail-val">${dev.name} <span class="dc-role ${roleClass(dev.role)}">${dev.role}</span></div>
     </div>
     <div class="detail-section">
-      <div class="dk">STATUS</div>
-      <div class="dv" style="display:flex;align-items:center;gap:6px;">
-        <span class="${dotClass(dev)}"></span>
-        <span>${isOffline(dev)?'OFFLINE':dev.status.toUpperCase()}</span>
+      <div class="detail-label">Status</div>
+      <div class="detail-val" style="display:flex;align-items:center;gap:7px;">
+        <span class="dc-dot ${dotClass(dev)}" style="display:inline-block;"></span>
+        <span style="font-family:var(--font-mono);font-size:0.8rem;">${off?'OFFLINE':dev.status.toUpperCase()}</span>
       </div>
     </div>
     <div class="detail-section">
-      <div class="dk">MASTER VOLUME</div>
+      <div class="detail-label">Master Volume</div>
       <div class="vol-row">
         <input type="range" id="volSlider" min="0" max="2" step="0.05" value="${dev.volume}">
-        <span class="vol-val" id="volVal">${Math.round(dev.volume*100)}%</span>
+        <span class="vol-val" id="volDisplay">${(dev.volume*100).toFixed(0)}%</span>
       </div>
     </div>
-    ${streams.size>0?`
+    ${streams.size > 0 ? `
     <div class="detail-section">
-      <div class="dk">ASSIGN STREAMS</div>
-      ${assignRows||'<div class="empty-msg">no streams</div>'}
-    </div>`:''}
-    <div style="margin-top:8px;">
-      <button class="btn-sm btn-danger" id="btnRemoveDev">Remove Device</button>
+      <div class="detail-label">Assign Streams</div>
+      <div id="assignBlock">
+        ${assignRows || '<div class="empty-hint">no streams</div>'}
+      </div>
+    </div>` : ''}
+    <div class="detail-section" style="margin-top:8px;">
+      <button class="btn-remove" id="btnRemoveDev">&#x2715; Remove Device</button>
     </div>`;
 
-  let volTimer = null;
-  const slider = document.getElementById('volSlider');
-  const volVal = document.getElementById('volVal');
-  slider.addEventListener('input', () => {
-    const v = parseFloat(slider.value);
-    volVal.textContent = Math.round(v*100)+'%';
-    if (dev) dev.volume = v;
-    clearTimeout(volTimer);
-    volTimer = setTimeout(() => {
+  // volume slider
+  let volT = null;
+  const sl = document.getElementById('volSlider');
+  const vd = document.getElementById('volDisplay');
+  sl.addEventListener('input', () => {
+    const v = parseFloat(sl.value);
+    vd.textContent = (v*100).toFixed(0)+'%';
+    if (devices[selectedId]) devices[selectedId].volume = v;
+    clearTimeout(volT);
+    volT = setTimeout(() => {
       fetch('/device/'+selectedId+'/volume', {
         method:'PATCH', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({volume:v})
+        body: JSON.stringify({volume:v})
       });
     }, 150);
   });
 
-  document.querySelectorAll('.assign-item input[type=checkbox]').forEach(cb => {
+  // assign checkboxes
+  document.querySelectorAll('#assignBlock input[type=checkbox]').forEach(cb => {
     cb.addEventListener('change', () => {
-      const assigned = Array.from(document.querySelectorAll('.assign-item input:checked')).map(c=>c.dataset.stream);
+      const assigned = Array.from(document.querySelectorAll('#assignBlock input:checked')).map(c=>c.dataset.stream);
       fetch('/device/'+selectedId+'/streams', {
         method:'PATCH', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({streams:assigned})
+        body: JSON.stringify({streams:assigned})
       });
-      if (devices[selectedId]) { devices[selectedId].assigned_streams = assigned; drawDiagram(); }
+      if (devices[selectedId]) devices[selectedId].assigned_streams = assigned;
+      renderDiagram();
     });
   });
 
   document.getElementById('btnRemoveDev').addEventListener('click', () => {
     fetch('/device/'+selectedId, {method:'DELETE'}).then(() => {
-      delete devices[selectedId]; selectedId = null;
-      renderDevices(); renderDetail(); drawDiagram();
+      delete devices[selectedId]; selectedId=null;
+      renderDevices(); renderDiagram(); renderDetail();
     });
   });
 }
 
-// ── SVG diagram ────────────────────────────────────────────────────────────
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
-function svgEl_(tag, attrs) {
-  const el = document.createElementNS(SVG_NS, tag);
-  Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k,v));
-  return el;
-}
-
-function drawDiagram() {
-  const svg = svgEl;
-  svg.innerHTML = '';
-  const W = svg.clientWidth  || svg.parentElement.clientWidth  || 600;
-  const H = svg.clientHeight || svg.parentElement.clientHeight || 400;
-
-  // defs: glow filter
-  const defs = svgEl_('defs',{});
-  const filt = svgEl_('filter',{id:'glow',x:'-40%',y:'-40%',width:'180%',height:'180%'});
-  const fe1  = svgEl_('feGaussianBlur',{stdDeviation:'3',result:'blur'});
-  const fe2  = svgEl_('feMerge',{});
-  const mn1  = svgEl_('feMergeNode',{in:'blur'});
-  const mn2  = svgEl_('feMergeNode',{in:'SourceGraphic'});
-  fe2.appendChild(mn1); fe2.appendChild(mn2);
-  filt.appendChild(fe1); filt.appendChild(fe2);
-  defs.appendChild(filt);
-  svg.appendChild(defs);
-
-  const allDevs = Object.values(devices);
-  const mics     = allDevs.filter(d => d.role === 'mic');
-  const speakers = allDevs.filter(d => d.role === 'speaker');
-
-  // layout constants
-  const cX = W / 2;
-  const cY = H / 2;
-  const nodeW = 110;
-  const nodeH = 36;
-  const leftX = 40;
-  const rightX = W - leftX - nodeW;
-
-  // draw active stream routes as lines first (behind nodes)
-  speakers.forEach(spk => {
-    (spk.assigned_streams||[]).forEach(streamName => {
-      // find mic that has this stream name matching a known stream
-      const srcMic = mics.find(m =>
-        streams.has(streamName) &&
-        // try matching stream name to device name or just draw from any source
-        (m.name === streamName || streams.has(streamName))
-      );
-      // use center node as relay point always
-      const spkIdx = speakers.indexOf(spk);
-      const spkTotal = speakers.length;
-      const spkY = spkTotal <= 1 ? cY : cY + (spkIdx - (spkTotal-1)/2) * 56;
-      const spkAnchorX = rightX;
-      const spkAnchorY = spkY + nodeH/2;
-
-      // line from center to speaker
-      const line2 = svgEl_('line', {
-        x1: cX+30, y1: cY,
-        x2: spkAnchorX, y2: spkAnchorY,
-        stroke: '#00f0ff', 'stroke-width':'1.5',
-        'stroke-dasharray':'4 3', opacity:'0.6',
-        filter:'url(#glow)'
-      });
-      line2.dataset.speaker = spk.id;
-      line2.dataset.stream  = streamName;
-      line2.style.cursor = 'pointer';
-      line2.addEventListener('click', () => disconnectRoute(spk.id, streamName));
-      svg.appendChild(line2);
-
-      // line from left to center (for any active stream)
-      if (streams.has(streamName)) {
-        const micIdx = Math.min(mics.length-1, 0);
-        const micTotal = Math.max(mics.length, 1);
-        const micY = micTotal <= 1 ? cY : cY + (micIdx - (micTotal-1)/2) * 56;
-        const line1 = svgEl_('line', {
-          x1: leftX+nodeW, y1: micY+nodeH/2,
-          x2: cX-30, y2: cY,
-          stroke: '#ff8800', 'stroke-width':'1.5',
-          'stroke-dasharray':'4 3', opacity:'0.5',
-          filter:'url(#glow)'
-        });
-        svg.appendChild(line1);
-      }
-    });
-  });
-
-  // center server node
-  const serverG = svgEl_('g', { transform: `translate(${cX-40},${cY-20})`, style:'cursor:default' });
-  const serverRect = svgEl_('rect', { x:0, y:0, width:80, height:40, fill:'rgba(255,0,60,0.08)',
-    stroke:'#ff003c', 'stroke-width':'1.5', rx:'2', filter:'url(#glow)' });
-  const serverTxt = svgEl_('text', { x:40, y:15, 'text-anchor':'middle',
-    fill:'#ff003c', 'font-family':'Share Tech Mono,monospace', 'font-size':'9', 'font-weight':'bold' });
-  serverTxt.textContent = 'SERVER';
-  const serverTxt2 = svgEl_('text', { x:40, y:28, 'text-anchor':'middle',
-    fill:'rgba(255,0,60,0.6)', 'font-family':'Share Tech Mono,monospace', 'font-size':'8' });
-  serverTxt2.textContent = 'RELAY';
-  serverG.appendChild(serverRect); serverG.appendChild(serverTxt); serverG.appendChild(serverTxt2);
-  svg.appendChild(serverG);
-
-  // active streams floating below center
-  let sIdx = 0;
-  streams.forEach(name => {
-    const sy = cY + 52 + sIdx * 22;
-    const stG = svgEl_('g', { transform:`translate(${cX-50},${sy-10})` });
-    const stR = svgEl_('rect', { x:0,y:0,width:100,height:20,fill:'rgba(0,240,255,0.05)',
-      stroke:'rgba(0,240,255,0.3)','stroke-width':'1',rx:'2' });
-    const stT = svgEl_('text', { x:50, y:13, 'text-anchor':'middle',
-      fill:'#00f0ff','font-family':'Share Tech Mono,monospace','font-size':'9' });
-    stT.textContent = '▸ '+name;
-    // dashed line to server
-    const stLine = svgEl_('line', { x1:50,y1:0, x2:50, y2:-52-sIdx*22+10,
-      stroke:'rgba(0,240,255,0.2)','stroke-width':'1','stroke-dasharray':'2 3' });
-    stG.appendChild(stLine); stG.appendChild(stR); stG.appendChild(stT);
-    svg.appendChild(stG);
-    sIdx++;
-  });
-
-  // draw mic nodes (left column)
-  mics.forEach((mic, i) => {
-    const total = mics.length;
-    const y = total <= 1 ? cY - nodeH/2 : cY + (i - (total-1)/2) * 56 - nodeH/2;
-    const offline = isOffline(mic);
-    const color = offline ? '#374151' : '#8b5cf6';
-    const isSelected = mic.id === pendingSource;
-
-    const g = svgEl_('g', { transform:`translate(${leftX},${y})`, style:'cursor:pointer' });
-    const rect = svgEl_('rect', { x:0,y:0,width:nodeW,height:nodeH,
-      fill: isSelected ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.06)',
-      stroke: isSelected ? '#bf00ff' : color, 'stroke-width': isSelected?'2':'1',
-      rx:'2', filter: offline?'':'url(#glow)' });
-    const nameT = svgEl_('text', { x:8, y:14, fill: color,
-      'font-family':'Share Tech Mono,monospace', 'font-size':'9', 'font-weight':'bold' });
-    nameT.textContent = '⬤ ' + mic.name.slice(0,12);
-    const roleT = svgEl_('text', { x:8, y:26, fill:'rgba(139,92,246,0.6)',
-      'font-family':'Share Tech Mono,monospace', 'font-size':'7.5' });
-    roleT.textContent = 'MIC/SOURCE';
-    g.appendChild(rect); g.appendChild(nameT); g.appendChild(roleT);
-
-    // click: set as pending source
-    g.addEventListener('click', () => {
-      pendingSource = mic.id;
-      elDiagStatus.textContent = 'source selected: '+mic.name+' — now click a speaker to connect';
-      drawDiagram();
-    });
-    svg.appendChild(g);
-
-    // line to center
-    const lineColor = offline ? 'rgba(55,65,81,0.4)' : 'rgba(139,92,246,0.35)';
-    const connLine = svgEl_('line', {
-      x1: leftX+nodeW, y1: y+nodeH/2,
-      x2: cX-40, y2: cY,
-      stroke: lineColor, 'stroke-width':'1', 'stroke-dasharray':'3 4'
-    });
-    svg.insertBefore(connLine, serverG);
-  });
-
-  // draw speaker nodes (right column)
-  speakers.forEach((spk, i) => {
-    const total = speakers.length;
-    const y = total <= 1 ? cY - nodeH/2 : cY + (i - (total-1)/2) * 56 - nodeH/2;
-    const offline = isOffline(spk);
-    const color = offline ? '#374151' : '#00f0ff';
-    const isSelected = spk.id === selectedId;
-
-    const g = svgEl_('g', { transform:`translate(${rightX},${y})`, style:'cursor:pointer' });
-    const rect = svgEl_('rect', { x:0,y:0,width:nodeW,height:nodeH,
-      fill: isSelected ? 'rgba(0,240,255,0.12)' : 'rgba(0,240,255,0.04)',
-      stroke: isSelected ? '#00f0ff' : color, 'stroke-width': isSelected?'2':'1',
-      rx:'2', filter: offline?'':'url(#glow)' });
-    const nameT = svgEl_('text', { x:8, y:14, fill: color,
-      'font-family':'Share Tech Mono,monospace', 'font-size':'9', 'font-weight':'bold' });
-    nameT.textContent = '⬤ ' + spk.name.slice(0,12);
-    const roleT = svgEl_('text', { x:8, y:26, fill:'rgba(0,240,255,0.5)',
-      'font-family':'Share Tech Mono,monospace', 'font-size':'7.5' });
-    roleT.textContent = 'SPEAKER';
-    g.appendChild(rect); g.appendChild(nameT); g.appendChild(roleT);
-
-    g.addEventListener('click', () => {
-      selectDevice(spk.id);
-      if (pendingSource) {
-        // connect: find streams that belong to the pending source
-        const srcDev = devices[pendingSource];
-        if (srcDev) {
-          // connect all available streams to this speaker
-          const toAssign = Array.from(streams);
-          if (toAssign.length > 0) {
-            const existing = spk.assigned_streams || [];
-            const merged = [...new Set([...existing, ...toAssign])];
-            fetch('/device/'+spk.id+'/streams', {
-              method:'PATCH', headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({streams:merged})
-            }).then(() => {
-              if (devices[spk.id]) devices[spk.id].assigned_streams = merged;
-              elDiagStatus.textContent = 'connected: '+srcDev.name+' → '+spk.name;
-              pendingSource = null;
-              drawDiagram(); renderDetail();
-            });
-          } else {
-            elDiagStatus.textContent = 'no active streams to connect';
-            pendingSource = null;
-          }
-        }
-      }
-    });
-    svg.appendChild(g);
-
-    // line center to speaker
-    const lineColor = offline ? 'rgba(55,65,81,0.4)' : 'rgba(0,240,255,0.2)';
-    const connLine = svgEl_('line', {
-      x1: cX+40, y1: cY,
-      x2: rightX, y2: y+nodeH/2,
-      stroke: lineColor, 'stroke-width':'1', 'stroke-dasharray':'3 4'
-    });
-    svg.insertBefore(connLine, serverG);
-  });
-
-  // empty state
-  if (mics.length === 0 && speakers.length === 0) {
-    const msg = svgEl_('text', { x: W/2, y: H/2, 'text-anchor':'middle',
-      fill:'rgba(255,0,60,0.3)', 'font-family':'Share Tech Mono,monospace', 'font-size':'12' });
-    msg.textContent = 'no devices — open sender & receiver first';
-    svg.appendChild(msg);
-  }
-}
-
-function disconnectRoute(speakerId, streamName) {
-  const spk = devices[speakerId];
-  if (!spk) return;
-  const newStreams = (spk.assigned_streams||[]).filter(s => s !== streamName);
-  fetch('/device/'+speakerId+'/streams', {
-    method:'PATCH', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({streams:newStreams})
-  }).then(() => {
-    if (devices[speakerId]) devices[speakerId].assigned_streams = newStreams;
-    elDiagStatus.textContent = 'disconnected: '+streamName+' from '+(spk.name||speakerId);
-    drawDiagram(); renderDetail();
-  });
-}
-
-// ── WebSocket ──────────────────────────────────────────────────────────────
-function setWsBadge(state) {
-  const map = { ok:['ws-ok','LIVE'], err:['ws-err','DISCONNECTED'], wait:['ws-wait','CONNECTING'] };
-  const [cls,txt] = map[state]||map.wait;
-  elWsBadge.className = 'ws-badge ' + cls;
-  elWsBadge.textContent = txt;
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function setWs(state) {
+  const m = {ok:['ws-badge ws-ok','LIVE'],err:['ws-badge ws-err','OFFLINE'],wait:['ws-badge ws-wait','CONNECTING…']};
+  const [cls,txt] = m[state]||m.wait;
+  elWsBadge.className=cls; elWsBadge.textContent=txt;
 }
 
 function connectWS() {
-  setWsBadge('wait');
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  setWs('wait');
+  const proto = location.protocol==='https:'?'wss':'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen  = () => { setWsBadge('ok'); };
-  ws.onclose = () => { setWsBadge('err'); setTimeout(connectWS, 3000); };
+  ws.onopen  = () => { setWs('ok'); };
+  ws.onclose = () => { setWs('err'); setTimeout(connectWS,3000); };
   ws.onerror = () => ws.close();
   ws.onmessage = (e) => {
-    let msg; try { msg = JSON.parse(e.data); } catch { return; }
-    handleEvent(msg);
+    let msg; try { msg=JSON.parse(e.data); } catch { return; }
+    applyEvent(msg);
   };
 }
 
-function handleEvent(msg) {
+function applyEvent(msg) {
   switch(msg.type) {
     case 'snapshot':
-      devices = {};
-      (msg.devices||[]).forEach(d => devices[d.id]=d);
-      streams = new Set(msg.streams||[]);
-      break;
-    case 'device_joined':
-      if(msg.device) devices[msg.device.id]=msg.device;
-      break;
-    case 'device_left':
-      delete devices[msg.id];
-      if(selectedId===msg.id){selectedId=null;}
-      if(pendingSource===msg.id){pendingSource=null;}
-      break;
-    case 'stream_added':
-      streams.add(msg.name); break;
-    case 'stream_removed':
-      streams.delete(msg.name); break;
-    case 'volume_changed':
-      if(devices[msg.device_id]) devices[msg.device_id].volume=msg.volume; break;
+      devices={}; (msg.devices||[]).forEach(d=>{devices[d.id]=d;});
+      streams=new Set(msg.streams||[]); break;
+    case 'device_joined': if(msg.device) devices[msg.device.id]=msg.device; break;
+    case 'device_left':   delete devices[msg.id]; if(selectedId===msg.id) selectedId=null; break;
+    case 'stream_added':  streams.add(msg.name);    break;
+    case 'stream_removed':streams.delete(msg.name); break;
+    case 'volume_changed': if(devices[msg.device_id]) devices[msg.device_id].volume=msg.volume; break;
     case 'route_changed':
-      if(devices[msg.speaker_id]) {
+      if (devices[msg.speaker_id]) {
         const d=devices[msg.speaker_id];
-        if(!d.assigned_streams) d.assigned_streams=[];
-        if(msg.connected){if(!d.assigned_streams.includes(msg.source))d.assigned_streams.push(msg.source);}
+        if (msg.connected) { if(!d.assigned_streams.includes(msg.source)) d.assigned_streams.push(msg.source); }
         else d.assigned_streams=d.assigned_streams.filter(s=>s!==msg.source);
-      }
-      break;
+      } break;
   }
-  renderDevices(); renderStreams(); drawDiagram();
-  if(selectedId && devices[selectedId]) renderDetail();
-  else if(selectedId && !devices[selectedId]){selectedId=null;elDetail.innerHTML='<div class="empty-msg">select a device</div>';}
+  renderDevices();
+  renderDiagram();
+  if (selectedId && devices[selectedId]) renderDetail();
+  else if (selectedId && !devices[selectedId]) { selectedId=null; elDetail.innerHTML='<div class="empty-hint">select a device</div>'; }
 }
 
-// ── periodic offline tick ──────────────────────────────────────────────────
-setInterval(() => { renderDevices(); if(selectedId&&devices[selectedId]) renderDetail(); }, 5000);
+// periodic offline re-render
+setInterval(()=>{ renderDevices(); renderDiagram(); if(selectedId&&devices[selectedId]) renderDetail(); }, 5000);
 
-// ── resize diagram ─────────────────────────────────────────────────────────
-const ro = new ResizeObserver(() => drawDiagram());
-ro.observe(svgEl.parentElement);
+// resize diagram on window resize
+window.addEventListener('resize', ()=>{ setTimeout(renderDiagram,50); });
 
-// ── init ───────────────────────────────────────────────────────────────────
 connectWS();
 </script>
 </body>
