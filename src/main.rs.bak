@@ -1,0 +1,864 @@
+use anyhow::{anyhow, Result};
+use axum::{
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path, State,
+    },
+    response::Html,
+    routing::{delete, get, patch, post},
+    Json, Router,
+};
+use bytes::Bytes;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use std::net::UdpSocket;
+use std::process::Command;
+use std::sync::{Arc, Condvar, Mutex};
+use tokio::runtime::Handle;
+use tokio::sync::{broadcast, oneshot};
+
+mod db;
+mod auth;
+
+use webrtc::{
+    api::{
+        interceptor_registry::register_default_interceptors,
+        media_engine::{MediaEngine, MIME_TYPE_OPUS},
+        setting_engine::SettingEngine,
+        APIBuilder,
+    },
+    ice_transport::{
+        ice_gatherer_state::RTCIceGathererState,
+        ice_server::RTCIceServer,
+    },
+    interceptor::registry::Registry,
+    media::Sample,
+    peer_connection::{
+        configuration::RTCConfiguration,
+        peer_connection_state::RTCPeerConnectionState,
+        sdp::session_description::RTCSessionDescription,
+    },
+    rtp_transceiver::rtp_codec::RTCRtpCodecCapability,
+    track::track_local::{
+        track_local_static_sample::TrackLocalStaticSample, TrackLocal,
+    },
+};
+use webrtc_ice::udp_network::{EphemeralUDP, UDPNetwork};
+use webrtc_ice::udp_mux::{UDPMuxDefault, UDPMuxParams};
+// ── constants ─────────────────────────────────────────────────────────────────
+const OPUS_SR: usize    = 48_000;
+const OPUS_CH: usize    = 2;
+const FRAME_SIZE: usize = 960;   // 20 ms @ 48 kHz
+const DURATION_MS: u64  = 20;
+const OPUS_BITRATE: i32 = 192_000;
+
+// ── Device model ──────────────────────────────────────────────────────────────
+
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviceRole {
+    Mic,
+    Speaker,
+    Manager,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviceStatus {
+    Online,
+    Offline,
+    Live,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct DeviceInfo {
+    pub id:               String,
+    pub name:             String,
+    pub role:             DeviceRole,
+    pub status:           DeviceStatus,
+    pub assigned_streams: Vec<String>,
+    pub volume:           f32,
+    pub last_seen:        u64,
+}
+
+// ── Control events (WebSocket broadcast) ──────────────────────────────────────
+
+#[derive(Clone, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ControlEvent {
+    DeviceJoined   { device: DeviceInfo },
+    DeviceLeft     { id: String },
+    StreamAdded    { name: String },
+    StreamRemoved  { name: String },
+    VolumeChanged  { device_id: String, volume: f32 },
+    RouteChanged   { source: String, speaker_id: String, connected: bool },
+    SetVolume      { device_id: String, stream: Option<String>, volume: f32 },
+}
+
+// ── Request / Response types ──────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct SenderOfferRequest {
+    name:   String,
+    source: Option<String>,
+    sdp:    RTCSessionDescription,
+}
+
+#[derive(Deserialize)]
+struct ReceiverOfferRequest {
+    streams: Vec<String>,
+    sdp:     RTCSessionDescription,
+}
+
+#[derive(Serialize)]
+struct StreamsResponse {
+    streams: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct RegisterDeviceRequest {
+    id:   Option<String>,
+    name: String,
+    role: DeviceRole,
+}
+
+#[derive(Deserialize)]
+struct PatchVolumeRequest {
+    volume: f32,
+}
+
+#[derive(Deserialize)]
+struct PatchStreamsRequest {
+    streams: Vec<String>,
+}
+
+// ── App state ─────────────────────────────────────────────────────────────────
+
+#[derive(Clone)]
+struct AppState {
+    api:      Arc<webrtc::api::API>,
+    streams:  Arc<DashMap<String, Arc<TrackLocalStaticSample>>>,
+    devices:  Arc<DashMap<String, DeviceInfo>>,
+    event_tx: broadcast::Sender<ControlEvent>,
+    db:       Arc<db::Db>,
+}
+
+// ── LAN IP ────────────────────────────────────────────────────────────────────
+
+fn local_lan_ip() -> String {
+    UdpSocket::bind("0.0.0.0:0")
+        .and_then(|s| { s.connect("8.8.8.8:80")?; s.local_addr() })
+        .map(|a| a.ip().to_string())
+        .unwrap_or_else(|_| "127.0.0.1".to_string())
+}
+
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let db = Arc::new(db::Db::new("airlink.db").unwrap());
+    db.init_default_admin();
+
+    let mut media_engine = MediaEngine::default();
+    media_engine.register_default_codecs()?;
+
+    let mut registry = Registry::new();
+    registry = register_default_interceptors(registry, &mut media_engine)?;
+
+    let udp_socket = tokio::net::UdpSocket::bind("0.0.0.0:30690").await?;
+    let udp_mux = UDPMuxDefault::new(UDPMuxParams::new(udp_socket));
+    let mut setting_engine = SettingEngine::default();
+    setting_engine.set_udp_network(UDPNetwork::Muxed(udp_mux));
+    
+    // Read network mode from DB
+    let mode = db.get_setting("streaming_mode").unwrap_or(None).unwrap_or_else(|| "lan".to_string());
+    if mode == "server" {
+        if let Ok(Some(ip)) = db.get_setting("server_ip") {
+            if !ip.trim().is_empty() {
+                println!("NAT Mode: Server (Public IP: {})", ip);
+                setting_engine.set_nat_1to1_ips(
+                    vec![ip],
+                    webrtc::ice_transport::ice_candidate_type::RTCIceCandidateType::Host,
+                );
+            }
+        }
+    } else {
+        println!("NAT Mode: LAN");
+    }
+
+    let api = Arc::new(
+        APIBuilder::new()
+            .with_media_engine(media_engine)
+            .with_interceptor_registry(registry)
+            .with_setting_engine(setting_engine)
+            .build(),
+    );
+
+    let lan_ip = local_lan_ip();
+    println!("Detected LAN IP : {lan_ip}");
+
+    let (event_tx, _) = broadcast::channel::<ControlEvent>(256);
+
+    let state = Arc::new(AppState {
+        api,
+        streams:  Arc::new(DashMap::new()),
+        devices:  Arc::new(DashMap::new()),
+        event_tx,
+        db,
+    });
+
+    use axum::middleware;
+    
+    let pages = Router::new()
+        .route("/sender",   get(sender_handler))
+        .route("/receiver", get(receiver_handler))
+        .route("/controller",get(controller_handler))
+        .route("/admin",    get(admin_handler))
+        .route("/admin/api/users", get(auth::list_users).post(auth::create_user))
+        .route("/admin/api/settings", get(auth::get_settings).post(auth::update_settings))
+        .route("/",         get(receiver_handler))
+        .route_layer(middleware::from_fn_with_state(state.clone(), auth::require_role));
+
+    let app = Router::new()
+        .merge(pages)
+        .route("/login",    get(auth::login_page).post(auth::login_post))
+        .route("/logout",   get(auth::logout))
+        // Stream API
+        .route("/streams",        get(list_streams))
+        .route("/sender/offer",   post(handle_sender_offer))
+        .route("/receiver/offer", post(handle_receiver_offer))
+        .route("/stream/{name}",  delete(remove_stream))
+        // Device API
+        .route("/device/register",     post(register_device))
+        .route("/devices",             get(list_devices))
+        .route("/device/{id}",         delete(remove_device))
+        .route("/device/{id}/volume",  patch(patch_device_volume))
+        .route("/device/{id}/streams", patch(patch_device_streams))
+        // WebSocket control bus
+        .route("/ws", get(ws_handler))
+        .with_state(state);
+
+    let bind_addr: std::net::SocketAddr = "0.0.0.0:443".parse()?;
+    let acme_domain = "airlink.y4z.dev".to_string(); // Or from db
+
+    println!("─────────────────────────────────────────────");
+    println!(" Receiver         : https://{acme_domain}");
+    println!(" Sender           : https://{acme_domain}/sender");
+    println!(" Manager          : https://{acme_domain}/admin");
+    println!("─────────────────────────────────────────────");
+
+    use rustls_acme::{caches::DirCache, AcmeConfig};
+    use tokio_stream::StreamExt;
+
+    // We use a second domain (nip.io) to bypass Let's Encrypt's 5 duplicate certs per week limit
+    println!(" ACME Directory   : Let's Encrypt Production");
+
+    let mut state = AcmeConfig::new(vec![acme_domain, "173.234.15.93.nip.io".to_string()])
+        .contact(vec!["mailto:admin@y4z.dev".to_string()])
+        .cache(DirCache::new(".cert_cache_prod")) // Use a brand new cache dir
+        .directory_lets_encrypt(true)
+        .state();
+
+    let rustls_config = state.default_rustls_config();
+    let acceptor = state.axum_acceptor(rustls_config);
+
+    tokio::spawn(async move {
+        loop {
+            match state.next().await {
+                Some(Ok(ok)) => println!("[ACME] event: {:?}", ok),
+                Some(Err(err)) => eprintln!("[ACME] error: {:?}", err),
+                None => break,
+            }
+        }
+    });
+
+    // Spawn HTTP to HTTPS redirect server
+    let http_bind_addr: std::net::SocketAddr = "0.0.0.0:80".parse()?;
+    tokio::spawn(async move {
+        let app = axum::Router::new().fallback(|req: axum::extract::Request| async move {
+            let host = req.headers().get(axum::http::header::HOST)
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("airlink.y4z.dev");
+            let path = req.uri().path_and_query().map(|pq| pq.as_str()).unwrap_or("/");
+            let https_url = format!("https://{}{}", host, path);
+            axum::response::Redirect::permanent(&https_url)
+        });
+        
+        if let Ok(listener) = tokio::net::TcpListener::bind(http_bind_addr).await {
+            println!(" Redirect server  : http://0.0.0.0:80 -> https");
+            let _ = axum::serve(listener, app).await;
+        } else {
+            eprintln!("Warning: Could not bind to port 80 for HTTP redirect");
+        }
+    });
+
+    axum_server::bind(bind_addr)
+        .acceptor(acceptor)
+        .serve(app.into_make_service())
+        .await
+        .map_err(|e| anyhow!("server error: {e}"))
+}
+
+// ── Page handlers ─────────────────────────────────────────────────────────────
+
+async fn receiver_handler() -> Html<&'static str> {
+    Html(include_str!("../static/index.html"))
+}
+
+async fn sender_handler() -> Html<&'static str> {
+    Html(include_str!("../static/sender.html"))
+}
+
+async fn controller_handler() -> Html<&'static str> {
+    Html(include_str!("../static/controller.html"))
+}
+
+async fn admin_handler() -> Html<&'static str> {
+    Html(include_str!("../static/admin.html"))
+}
+
+
+// ── Stream API handlers ────────────────────────────────────────────────────────
+
+async fn list_streams(
+    State(state): State<Arc<AppState>>,
+) -> Json<StreamsResponse> {
+    let streams: Vec<String> = state.streams.iter().map(|e| e.key().clone()).collect();
+    Json(StreamsResponse { streams })
+}
+
+async fn remove_stream(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+) -> axum::http::StatusCode {
+    state.streams.remove(&name);
+    let _ = state.event_tx.send(ControlEvent::StreamRemoved { name: name.clone() });
+    println!("[stream] removed: {name}");
+    axum::http::StatusCode::NO_CONTENT
+}
+
+// ── Device API handlers ────────────────────────────────────────────────────────
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+async fn register_device(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<RegisterDeviceRequest>,
+) -> (axum::http::StatusCode, Json<DeviceInfo>) {
+    let id = req.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let device = DeviceInfo {
+        id:               id.clone(),
+        name:             req.name,
+        role:             req.role,
+        status:           DeviceStatus::Online,
+        assigned_streams: vec![],
+        volume:           1.0,
+        last_seen:        now_ms(),
+    };
+    state.devices.insert(id.clone(), device.clone());
+    let _ = state.event_tx.send(ControlEvent::DeviceJoined { device: device.clone() });
+    println!("[device] registered: {} ({})", device.name, id);
+    (axum::http::StatusCode::CREATED, Json(device))
+}
+
+async fn list_devices(
+    State(state): State<Arc<AppState>>,
+) -> Json<Vec<DeviceInfo>> {
+    let devices: Vec<DeviceInfo> = state.devices.iter().map(|e| e.value().clone()).collect();
+    Json(devices)
+}
+
+async fn remove_device(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> axum::http::StatusCode {
+    state.devices.remove(&id);
+    let _ = state.event_tx.send(ControlEvent::DeviceLeft { id: id.clone() });
+    println!("[device] removed: {id}");
+    axum::http::StatusCode::NO_CONTENT
+}
+
+async fn patch_device_volume(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(req): Json<PatchVolumeRequest>,
+) -> axum::http::StatusCode {
+    if let Some(mut dev) = state.devices.get_mut(&id) {
+        dev.volume = req.volume.clamp(0.0, 2.0);
+        dev.last_seen = now_ms();
+        let _ = state.event_tx.send(ControlEvent::VolumeChanged {
+            device_id: id.clone(),
+            volume: dev.volume,
+        });
+        let _ = state.event_tx.send(ControlEvent::SetVolume {
+            device_id: id.clone(),
+            stream:    None,
+            volume:    dev.volume,
+        });
+        axum::http::StatusCode::NO_CONTENT
+    } else {
+        axum::http::StatusCode::NOT_FOUND
+    }
+}
+
+async fn patch_device_streams(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(req): Json<PatchStreamsRequest>,
+) -> axum::http::StatusCode {
+    if let Some(mut dev) = state.devices.get_mut(&id) {
+        let old = dev.assigned_streams.clone();
+        dev.assigned_streams = req.streams.clone();
+        dev.last_seen = now_ms();
+        for s in &req.streams {
+            if !old.contains(s) {
+                let _ = state.event_tx.send(ControlEvent::RouteChanged {
+                    source:     s.clone(),
+                    speaker_id: id.clone(),
+                    connected:  true,
+                });
+            }
+        }
+        for s in &old {
+            if !req.streams.contains(s) {
+                let _ = state.event_tx.send(ControlEvent::RouteChanged {
+                    source:     s.clone(),
+                    speaker_id: id.clone(),
+                    connected:  false,
+                });
+            }
+        }
+        axum::http::StatusCode::NO_CONTENT
+    } else {
+        axum::http::StatusCode::NOT_FOUND
+    }
+}
+
+// ── WebSocket control bus ─────────────────────────────────────────────────────
+
+async fn ws_handler(
+    State(state): State<Arc<AppState>>,
+    ws: WebSocketUpgrade,
+) -> impl axum::response::IntoResponse {
+    ws.on_upgrade(move |socket| handle_ws(socket, state))
+}
+
+async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
+    let mut rx = state.event_tx.subscribe();
+
+    let snapshot_streams: Vec<String> = state.streams.iter().map(|e| e.key().clone()).collect();
+    let snapshot_devices: Vec<DeviceInfo> = state.devices.iter().map(|e| e.value().clone()).collect();
+    let snap = serde_json::json!({
+        "type": "snapshot",
+        "streams": snapshot_streams,
+        "devices": snapshot_devices,
+    });
+    if socket.send(Message::Text(snap.to_string().into())).await.is_err() {
+        return;
+    }
+
+    loop {
+        tokio::select! {
+            event = rx.recv() => {
+                match event {
+                    Ok(ev) => {
+                        let text = match serde_json::to_string(&ev) {
+                            Ok(t) => t,
+                            Err(_) => continue,
+                        };
+                        if socket.send(Message::Text(text.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(_) => break,
+                }
+            }
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Text(t))) => {
+                        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&t) {
+                            if val.get("type").and_then(|v| v.as_str()) == Some("heartbeat") {
+                                if let Some(id) = val.get("device_id").and_then(|v| v.as_str()) {
+                                    if let Some(mut dev) = state.devices.get_mut(id) {
+                                        dev.last_seen = now_ms();
+                                        dev.status = DeviceStatus::Online;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+// ── WebRTC offer handlers ──────────────────────────────────────────────────────
+
+async fn handle_sender_offer(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SenderOfferRequest>,
+) -> Json<RTCSessionDescription> {
+    let name   = req.name.clone();
+    let source = req.source.as_deref().unwrap_or("system").to_string();
+
+    let track = Arc::new(TrackLocalStaticSample::new(
+        RTCRtpCodecCapability {
+            mime_type:     MIME_TYPE_OPUS.to_owned(),
+            clock_rate:    OPUS_SR as u32,
+            channels:      OPUS_CH as u16,
+            sdp_fmtp_line: "minptime=20;useinbandfec=1;stereo=1;sprop-stereo=1".to_string(),
+            ..Default::default()
+        },
+        name.clone(),
+        name.clone(),
+    ));
+    state.streams.insert(name.clone(), Arc::clone(&track));
+    let _ = state.event_tx.send(ControlEvent::StreamAdded { name: name.clone() });
+    println!("[stream] registered: {name} (source={source})");
+
+    if source == "system" {
+        let rt_handle = Handle::current();
+        let name2 = name.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = start_audio_capture(track, rt_handle) {
+                eprintln!("[{name2}] audio capture error: {e:?}");
+            }
+        });
+
+        let pc = build_peer_connection(&state).await;
+        attach_state_cleanup(pc.clone(), name.clone(), Arc::clone(&state.streams), "system", state.event_tx.clone());
+        return negotiate_and_answer(&state, pc, req.sdp).await;
+    }
+
+    let pc = build_peer_connection(&state).await;
+
+    pc.on_track(Box::new({
+        let relay_track = Arc::clone(&track);
+        let name2 = name.clone();
+        move |remote_track, _, _| {
+            let relay = Arc::clone(&relay_track);
+            let name3 = name2.clone();
+            println!("[sender/browser] [{name3}] inbound track");
+            tokio::spawn(async move {
+                while let Ok((rtp_pkt, _)) = remote_track.read_rtp().await {
+                    let payload = Bytes::copy_from_slice(&rtp_pkt.payload);
+                    let _ = relay.write_sample(&Sample {
+                        data:     payload,
+                        duration: std::time::Duration::from_millis(DURATION_MS),
+                        ..Default::default()
+                    }).await;
+                }
+                println!("[sender/browser] [{name3}] track ended");
+            });
+            Box::pin(async {})
+        }
+    }));
+
+    attach_state_cleanup(pc.clone(), name.clone(), Arc::clone(&state.streams), "browser", state.event_tx.clone());
+    negotiate_and_answer(&state, pc, req.sdp).await
+}
+
+async fn handle_receiver_offer(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ReceiverOfferRequest>,
+) -> Json<RTCSessionDescription> {
+    let pc = build_peer_connection(&state).await;
+
+    for stream_name in &req.streams {
+        if let Some(track) = state.streams.get(stream_name) {
+            let rtp_sender = pc
+                .add_track(Arc::clone(&*track) as Arc<dyn TrackLocal + Send + Sync>)
+                .await
+                .expect("failed to add track");
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 1500];
+                while rtp_sender.read(&mut buf).await.is_ok() {}
+            });
+            println!("[receiver] subscribed to: {stream_name}");
+        } else {
+            println!("[receiver] stream not found (skipped): {stream_name}");
+        }
+    }
+
+    pc.on_peer_connection_state_change(Box::new(|s: RTCPeerConnectionState| {
+        println!("[receiver] PC state: {s}");
+        Box::pin(async {})
+    }));
+
+    negotiate_and_answer(&state, pc, req.sdp).await
+}
+
+// ── WebRTC helpers ─────────────────────────────────────────────────────────────
+
+fn attach_state_cleanup(
+    pc:      Arc<webrtc::peer_connection::RTCPeerConnection>,
+    name:    String,
+    streams: Arc<DashMap<String, Arc<TrackLocalStaticSample>>>,
+    tag:     &'static str,
+    tx:      broadcast::Sender<ControlEvent>,
+) {
+    pc.on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
+        let name    = name.clone();
+        let streams = Arc::clone(&streams);
+        let tx      = tx.clone();
+        println!("[sender/{tag}] [{name}] PC state: {s}");
+        if matches!(s, RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed) {
+            streams.remove(&name);
+            let _ = tx.send(ControlEvent::StreamRemoved { name: name.clone() });
+            println!("[stream] unregistered: {name}");
+        }
+        Box::pin(async {})
+    }));
+}
+
+async fn build_peer_connection(
+    state: &AppState,
+) -> Arc<webrtc::peer_connection::RTCPeerConnection> {
+    let config = RTCConfiguration {
+        ..Default::default()
+    };
+    Arc::new(
+        state.api.new_peer_connection(config).await
+            .expect("failed to create peer connection"),
+    )
+}
+
+async fn negotiate_and_answer(
+    state: &AppState,
+    pc:    Arc<webrtc::peer_connection::RTCPeerConnection>,
+    offer: RTCSessionDescription,
+) -> Json<RTCSessionDescription> {
+    pc.set_remote_description(offer).await
+        .expect("set_remote_description failed");
+
+    let answer = pc.create_answer(None).await
+        .expect("create_answer failed");
+
+    let (tx, rx) = oneshot::channel::<()>();
+    let tx = Arc::new(tokio::sync::Mutex::new(Some(tx)));
+
+    pc.on_ice_gathering_state_change(Box::new(move |s: RTCIceGathererState| {
+        let tx = Arc::clone(&tx);
+        Box::pin(async move {
+            if s == RTCIceGathererState::Complete {
+                if let Some(t) = tx.lock().await.take() {
+                    let _ = t.send(());
+                }
+            }
+        })
+    }));
+
+    pc.set_local_description(answer).await
+        .expect("set_local_description failed");
+
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(5), rx).await;
+
+    let mut final_answer = pc.local_description().await
+        .expect("no local description");
+
+    let mode = state.db.get_setting("streaming_mode").unwrap_or(None).unwrap_or_else(|| "lan".to_string());
+    if mode == "server" {
+        if let Ok(Some(ip)) = state.db.get_setting("server_ip") {
+            if !ip.trim().is_empty() {
+                final_answer.sdp = final_answer.sdp.replace("c=IN IP4 0.0.0.0", &format!("c=IN IP4 {}", ip.trim()));
+                final_answer.sdp = final_answer.sdp.replace("m=audio 9 ", "m=audio 30690 ");
+            }
+        }
+    }
+
+    println!("SERVER SDP:\n{}", final_answer.sdp);
+    Json(final_answer)
+}
+
+// ── Audio capture (system source) ─────────────────────────────────────────────
+
+fn pulse_default_source_name() -> Option<String> {
+    let out = Command::new("pactl").arg("get-default-source").output().ok()?;
+    if !out.status.success() { return None; }
+    let s = String::from_utf8(out.stdout).ok()?.trim().to_string();
+    if s.is_empty() { None } else { Some(s) }
+}
+
+fn choose_input_device() -> Result<cpal::Device> {
+    let host    = cpal::default_host();
+    let devices: Vec<cpal::Device> = host.input_devices()?.collect();
+    if devices.is_empty() { return Err(anyhow!("no input devices found")); }
+
+    let default_src = pulse_default_source_name();
+    println!("[cpal] PulseAudio default source: {}",
+        default_src.as_deref().unwrap_or("<none>"));
+
+    if let Some(ref src) = default_src {
+        let src_l = src.to_ascii_lowercase();
+        for d in &devices {
+            let name = d.name().unwrap_or_default().to_ascii_lowercase();
+            if name.contains(&src_l) {
+                println!("[cpal] selected (pulse match): {}", d.name().unwrap_or_default());
+                return Ok(d.clone());
+            }
+        }
+    }
+    for d in &devices {
+        let name = d.name().unwrap_or_default().to_ascii_lowercase();
+        if name.contains("monitor") {
+            println!("[cpal] selected (monitor fallback): {}", d.name().unwrap_or_default());
+            return Ok(d.clone());
+        }
+    }
+    let d = host.default_input_device()
+        .ok_or_else(|| anyhow!("no default input device"))?;
+    println!("[cpal] selected (default): {}", d.name().unwrap_or_default());
+    Ok(d)
+}
+
+async fn write_encoded_frame(
+    track:       Arc<TrackLocalStaticSample>,
+    payload:     Vec<u8>,
+    duration_ms: u64,
+) {
+    let _ = track.write_sample(&Sample {
+        data:     Bytes::from(payload),
+        duration: std::time::Duration::from_millis(duration_ms),
+        ..Default::default()
+    }).await;
+}
+
+fn start_audio_capture(
+    track:     Arc<TrackLocalStaticSample>,
+    rt_handle: Handle,
+) -> Result<()> {
+    let device  = choose_input_device()?;
+    let sup_cfg = device.default_input_config()?;
+    let input_sr  = sup_cfg.sample_rate().0 as usize;
+    let input_ch  = sup_cfg.channels() as usize;
+    let stream_cfg: cpal::StreamConfig = sup_cfg.clone().into();
+
+    println!("[cpal] device : {}", device.name().unwrap_or_default());
+    println!("[cpal] native : {}Hz {}ch", input_sr, input_ch);
+
+    let mut encoder = opus::Encoder::new(
+        OPUS_SR as u32,
+        opus::Channels::Stereo,
+        opus::Application::Audio,
+    )?;
+    encoder.set_bitrate(opus::Bitrate::Bits(OPUS_BITRATE))?;
+    encoder.set_vbr(true)?;
+    encoder.set_inband_fec(true)?;
+    encoder.set_packet_loss_perc(5)?;
+
+    let ring: Arc<(Mutex<Vec<f32>>, Condvar)> = Arc::new((Mutex::new(Vec::new()), Condvar::new()));
+    let ring_enc = Arc::clone(&ring);
+    let track_enc = Arc::clone(&track);
+    let rt_enc = rt_handle.clone();
+
+    std::thread::spawn(move || {
+        let ratio = OPUS_SR as f64 / input_sr as f64;
+        let min_input_needed = ((FRAME_SIZE as f64 / ratio).ceil() as usize + 1) * input_ch;
+        let mut opus_pcm: Vec<i16> = Vec::with_capacity(FRAME_SIZE * OPUS_CH * 4);
+
+        loop {
+            let chunk: Vec<f32> = {
+                let (lock, cvar) = &*ring_enc;
+                let mut buf = cvar
+                    .wait_while(lock.lock().unwrap(), |b| b.len() < min_input_needed)
+                    .unwrap();
+                let take = buf.len();
+                buf.drain(..take).collect()
+            };
+
+            let native_frames = chunk.len() / input_ch;
+            let target_frames = (native_frames as f64 * ratio) as usize;
+
+            for i in 0..target_frames {
+                let src_f = i as f64 / ratio;
+                let src_i = src_f as usize;
+                let frac  = (src_f - src_i as f64) as f32;
+
+                let i0 = (src_i * input_ch).min(chunk.len().saturating_sub(input_ch));
+                let i1 = ((src_i + 1) * input_ch).min(chunk.len().saturating_sub(input_ch));
+
+                let l0 = chunk[i0];
+                let r0 = if input_ch >= 2 { chunk[i0 + 1] } else { l0 };
+                let l1 = chunk[i1];
+                let r1 = if input_ch >= 2 { chunk[i1 + 1] } else { l1 };
+
+                let l = l0 + (l1 - l0) * frac;
+                let r = r0 + (r1 - r0) * frac;
+
+                opus_pcm.push((l.clamp(-1.0, 1.0) * i16::MAX as f32) as i16);
+                opus_pcm.push((r.clamp(-1.0, 1.0) * i16::MAX as f32) as i16);
+            }
+
+            while opus_pcm.len() >= FRAME_SIZE * OPUS_CH {
+                let frame: Vec<i16> = opus_pcm.drain(..FRAME_SIZE * OPUS_CH).collect();
+                let mut out = vec![0u8; 4000];
+                if let Ok(n) = encoder.encode(&frame, &mut out) {
+                    out.truncate(n);
+                    rt_enc.spawn(write_encoded_frame(
+                        Arc::clone(&track_enc), out, DURATION_MS,
+                    ));
+                }
+            }
+        }
+    });
+
+    let stream = match sup_cfg.sample_format() {
+        cpal::SampleFormat::F32 => {
+            let ring2 = Arc::clone(&ring);
+            device.build_input_stream(
+                &stream_cfg,
+                move |data: &[f32], _| {
+                    let (lock, cvar) = &*ring2;
+                    lock.lock().unwrap().extend_from_slice(data);
+                    cvar.notify_one();
+                },
+                |e| eprintln!("[cpal] {e}"),
+                None,
+            )?
+        }
+        cpal::SampleFormat::I16 => {
+            let ring2 = Arc::clone(&ring);
+            device.build_input_stream(
+                &stream_cfg,
+                move |data: &[i16], _| {
+                    let (lock, cvar) = &*ring2;
+                    let mut buf = lock.lock().unwrap();
+                    buf.extend(data.iter().map(|&s| s as f32 / i16::MAX as f32));
+                    cvar.notify_one();
+                },
+                |e| eprintln!("[cpal] {e}"),
+                None,
+            )?
+        }
+        cpal::SampleFormat::U16 => {
+            let ring2 = Arc::clone(&ring);
+            device.build_input_stream(
+                &stream_cfg,
+                move |data: &[u16], _| {
+                    let (lock, cvar) = &*ring2;
+                    let mut buf = lock.lock().unwrap();
+                    buf.extend(data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0));
+                    cvar.notify_one();
+                },
+                |e| eprintln!("[cpal] {e}"),
+                None,
+            )?
+        }
+        other => return Err(anyhow!("unsupported sample format: {other:?}")),
+    };
+
+    stream.play()?;
+    println!("[cpal] audio capture started ({DURATION_MS}ms frames / {OPUS_BITRATE}bps)");
+    loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
+}

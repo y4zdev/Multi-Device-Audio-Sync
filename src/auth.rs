@@ -111,6 +111,27 @@ pub async fn create_user(
     }))
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct SettingsPayload {
+    pub mode: String,
+    pub server_ip: String,
+}
+
+pub async fn get_settings(State(state): State<Arc<AppState>>) -> Json<SettingsPayload> {
+    let mode = state.db.get_setting("streaming_mode").unwrap_or(None).unwrap_or_else(|| "lan".to_string());
+    let ip = state.db.get_setting("server_ip").unwrap_or(None).unwrap_or_else(|| "".to_string());
+    Json(SettingsPayload { mode, server_ip: ip })
+}
+
+pub async fn update_settings(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<SettingsPayload>,
+) -> Result<Json<SettingsPayload>, (StatusCode, &'static str)> {
+    state.db.set_setting("streaming_mode", &payload.mode).map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to save settings"))?;
+    state.db.set_setting("server_ip", &payload.server_ip).map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to save settings"))?;
+    Ok(Json(payload))
+}
+
 // Middleware to enforce roles
 pub async fn require_role(
     State(state): State<Arc<AppState>>,

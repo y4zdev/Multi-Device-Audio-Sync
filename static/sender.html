@@ -267,7 +267,7 @@
         <div class="data-grid">
           <div><div class="dk">Node ID</div><div class="dv" id="devIdDisplay">—</div></div>
           <div><div class="dk">Connection</div><div class="dv" id="wsState">Disconnected</div></div>
-          <div><div class="dk">RTC Status</div><div class="dv" id="rtcStatusDisplay">—</div></div>
+          <div><div class="dk">Up Speed</div><div class="dv" id="upSpeedDisplay">—</div></div>
           <div><div class="dk">Latency (RTT)</div><div class="dv" id="rtcLatencyDisplay">—</div></div>
           <div style="grid-column: span 2;"><div class="dk">Audio Output</div><div class="vu-bar"><div class="vu-fill" id="vu_meter"></div></div></div>
         </div>
@@ -367,7 +367,10 @@ function connectWs() {
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data);
-      if (msg.type === 'set_volume' && msg.device_id === deviceId) {
+      if (msg.type === 'pong') {
+        const rtt = Date.now() - msg.ts;
+        document.getElementById('rtcLatencyDisplay').textContent = rtt + ' ms';
+      } else if (msg.type === 'set_volume' && msg.device_id === deviceId) {
         log('Remote Override: Gain set to ' + Math.round(msg.volume * 100) + '%', 'warn');
       }
     } catch {}
@@ -384,8 +387,7 @@ function updateCount() {
     setSys('IDLE', 'idle');
     document.getElementById('startStreamBtn').style.display = 'block';
     document.getElementById('stopStreamBtn').style.display = 'none';
-    document.getElementById('rtcStatusDisplay').textContent = '—';
-    document.getElementById('rtcLatencyDisplay').textContent = '—';
+    document.getElementById('upSpeedDisplay').textContent = '—';
     document.getElementById('vu_meter').style.width = '0%';
   } else {
     document.getElementById('startStreamBtn').style.display = 'none';
@@ -393,22 +395,22 @@ function updateCount() {
   }
 }
 
-setInterval(async () => {
-  for (const name in activeConnections) {
-    const conn = activeConnections[name];
-    if (conn && conn.pc) {
-      let rtt = '--';
-      try {
-        const stats = await conn.pc.getStats();
-        stats.forEach(report => {
-          if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.currentRoundTripTime !== undefined) {
-            rtt = (report.currentRoundTripTime * 1000).toFixed(0) + ' ms';
-          }
-        });
-      } catch (e) {}
-      document.getElementById('rtcStatusDisplay').textContent = conn.pc.connectionState.toUpperCase();
-      document.getElementById('rtcLatencyDisplay').textContent = rtt;
-    }
+let totalBytesSent = 0;
+let lastBytesSent = 0;
+
+setInterval(() => {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
+  }
+
+  const active = Object.keys(activeConnections).length > 0;
+  if (active) {
+    const diff = totalBytesSent - lastBytesSent;
+    lastBytesSent = totalBytesSent;
+    const kbps = (diff * 8) / 2 / 1000;
+    document.getElementById('upSpeedDisplay').textContent = kbps.toFixed(1) + ' kbps';
+  } else {
+    document.getElementById('upSpeedDisplay').textContent = '—';
   }
 }, 2000);
 
@@ -428,18 +430,11 @@ window.stopStream = function(name) {
 };
 
 async function sendOffer(endpoint, body) {
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(12000)
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  // Not used for WS, but kept for compatibility if needed elsewhere
 }
 
 function makePC() {
-  return new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  // Not used for WS
 }
 
 async function startStream(name, source) {
@@ -452,43 +447,31 @@ async function startStream(name, source) {
   setSys('TRANSMITTING', 'live');
   log(`Initializing stream: ${name} [${source}]`);
   document.getElementById('vizLabel').textContent = `LIVE: ${name}`;
-  backoffMap[name] = backoffMap[name] || 2000;
 
   if (source === 'system') {
     try {
-      const dpc = makePC();
-      dpc.addTransceiver('audio', { direction: 'sendrecv' });
-      const offer = await dpc.createOffer();
-      await dpc.setLocalDescription(offer);
-      await sendOffer('/sender/offer', { name, source: 'system', sdp: dpc.localDescription });
+      const res = await fetch('/start_system_capture', { method: 'POST' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       
-      activeConnections[name] = { pc: dpc, stream: null, an: null };
+      activeConnections[name] = { pc: null, stream: null, an: null }; // Mock object
       updateCount();
       log(`System capture engaged: ${name}`);
-      backoffMap[name] = 2000;
     } catch (err) {
       log(`Failed: ${err.message}`, 'err');
       setSys('ERROR', 'err');
-      const delay = backoffMap[name] || 2000;
-      backoffMap[name] = Math.min(delay * 2, 30000);
-      log(`Retrying in ${delay/1000}s...`, 'warn');
-      setTimeout(() => startStream(name, source), delay);
     }
     return;
   }
 
   let stream;
   try {
+    const getMedia = (constraints) => navigator.mediaDevices.getUserMedia(constraints);
+    const getDisplay = (constraints) => navigator.mediaDevices.getDisplayMedia(constraints);
+
     if (source === 'browser') {
-      stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, 
-        video: false 
-      });
+      stream = await getMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, video: false });
     } else {
-      stream = await navigator.mediaDevices.getDisplayMedia({ 
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, 
-        video: true 
-      });
+      stream = await getDisplay({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, video: true });
       stream.getVideoTracks().forEach(t => t.stop());
     }
   } catch (err) {
@@ -498,57 +481,73 @@ async function startStream(name, source) {
   }
 
   try {
-    const pc2 = makePC();
-    const [audioTrack] = stream.getAudioTracks();
-    const sender = pc2.addTrack(audioTrack, stream);
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${proto}://${location.host}/ws/sender/${encodeURIComponent(name)}`);
     
-    const params = sender.getParameters();
-    if (!params.encodings) params.encodings = [{}];
-    params.encodings[0].maxBitrate = 192000;
-    params.encodings[0].priority = 'high';
-    sender.setParameters(params).catch(() => {});
-
-    const actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
-    const src2 = actx.createMediaStreamSource(stream);
-    const an2 = actx.createAnalyser(); 
-    an2.fftSize = 256;
-    src2.connect(an2);
-    analyserNodes.push(an2);
-
-    pc2.onconnectionstatechange = () => {
-      log(`[${name}] State: ${pc2.connectionState}`);
-      if (pc2.connectionState === 'failed' || pc2.connectionState === 'disconnected') {
-        delete activeConnections[name];
-        analyserNodes = analyserNodes.filter(a => a !== an2);
-        updateCount();
-        const delay = backoffMap[name] || 2000;
-        backoffMap[name] = Math.min(delay * 2, 30000);
-        log(`Connection Lost: ${name}. Reconnecting in ${delay/1000}s`, 'warn');
-        setTimeout(() => startStream(name, source), delay);
-      }
-      if (pc2.connectionState === 'connected') backoffMap[name] = 2000;
+    socket.onclose = () => {
+      log(`Connection Lost: ${name}`, 'warn');
+      if (activeConnections[name]) stopStream(name);
     };
 
-    const offer = await pc2.createOffer();
-    await pc2.setLocalDescription(offer);
-    const answer = await sendOffer('/sender/offer', { name, source, sdp: pc2.localDescription });
-    await pc2.setRemoteDescription(answer);
+    socket.onerror = () => {
+      log(`WebSocket error on stream ${name}`, 'err');
+    };
 
-    activeConnections[name] = { pc: pc2, stream, an: an2 };
-    updateCount();
-    log(`Stream Active: ${name}`);
-    backoffMap[name] = 2000;
+    socket.onopen = () => {
+      log(`WebSocket stream connected: ${name}`);
+      
+      const actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+      const src2 = actx.createMediaStreamSource(stream);
+      
+      // Use AudioWorklet or ScriptProcessor to get raw PCM
+      // For broad compatibility, we use ScriptProcessor for now
+      const processor = actx.createScriptProcessor(4096, 2, 2);
+      
+      src2.connect(processor);
+      processor.connect(actx.destination); // Required to make it process
 
-    function vuTick() {
-      if (!activeConnections[name]) return;
-      const data = new Uint8Array(an2.frequencyBinCount);
-      an2.getByteFrequencyData(data);
-      const avg = data.reduce((a, b) => a + b, 0) / data.length;
-      const vu = document.getElementById('vu_meter');
-      if (vu) vu.style.width = Math.min(100, (avg / 255) * 100 * 2.5) + '%';
-      requestAnimationFrame(vuTick);
-    }
-    vuTick();
+      processor.onaudioprocess = (e) => {
+        if (socket.readyState !== WebSocket.OPEN) return;
+        const left = e.inputBuffer.getChannelData(0);
+        const right = e.inputBuffer.getChannelData(e.inputBuffer.numberOfChannels > 1 ? 1 : 0);
+        
+        // Interleave left and right into a single Float32Array
+        const interleaved = new Float32Array(left.length * 2);
+        for (let i = 0; i < left.length; i++) {
+          interleaved[i*2] = left[i];
+          interleaved[i*2+1] = right[i];
+        }
+        
+        socket.send(interleaved.buffer);
+        totalBytesSent += interleaved.byteLength;
+      };
+
+      const an2 = actx.createAnalyser(); 
+      an2.fftSize = 256;
+      src2.connect(an2);
+      analyserNodes.push(an2);
+
+      activeConnections[name] = { 
+        pc: { close: () => socket.close() }, // Mock pc for close()
+        stream, 
+        an: an2,
+        processor,
+        actx
+      };
+      updateCount();
+      log(`Stream Active: ${name}`);
+
+      function vuTick() {
+        if (!activeConnections[name]) return;
+        const data = new Uint8Array(an2.frequencyBinCount);
+        an2.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        const vu = document.getElementById('vu_meter');
+        if (vu) vu.style.width = Math.min(100, (avg / 255) * 100 * 2.5) + '%';
+        requestAnimationFrame(vuTick);
+      }
+      vuTick();
+    };
   } catch (err) {
     log(`Initialization failed: ${err.message}`, 'err');
     setSys('ERROR', 'err');

@@ -358,10 +358,10 @@
           <button class="danger" id="btnDisconnect" disabled>Disconnect</button>
         </div>
         <div class="data-grid">
-          <div><div class="dk">ICE</div><div class="dv" id="iceState">—</div></div>
           <div><div class="dk">Audio Engine</div><div class="dv" id="audioState">—</div></div>
           <div><div class="dk">Connection</div><div class="dv" id="wsState">Disconnected</div></div>
-          <div><div class="dk">Heartbeat</div><div class="dv" id="hbState">—</div></div>
+          <div><div class="dk">Down Speed</div><div class="dv" id="downSpeedDisplay">—</div></div>
+          <div><div class="dk">Latency (RTT)</div><div class="dv" id="rtcLatencyDisplay">—</div></div>
         </div>
       </div>
 
@@ -392,10 +392,10 @@ const elDevStatus = document.getElementById('devStatusDisplay');
 const elStreamList= document.getElementById('streamList');
 const elAssigned  = document.getElementById('assignedStreams');
 const elStreamCnt = document.getElementById('streamCount');
-const elIce       = document.getElementById('iceState');
 const elAudio     = document.getElementById('audioState');
 const elWs        = document.getElementById('wsState');
-const elHb        = document.getElementById('hbState');
+const elDownSpeed = document.getElementById('downSpeedDisplay');
+const elLatency   = document.getElementById('rtcLatencyDisplay');
 const elSysDot    = document.getElementById('sysDot');
 const elSysText   = document.getElementById('sysText');
 const btnConnect  = document.getElementById('btnConnect');
@@ -515,17 +515,41 @@ async function registerDevice() {
   log('Device registered: ' + name + ' [' + deviceId.slice(0,8) + ']');
 }
 
-// ── heartbeat ─────────────────────────────────────────────────────────────────
+// ── heartbeat & stats ────────────────────────────────────────────────────────
+let totalBytesRecv = 0;
+let lastBytesRecv = 0;
+let statTimer = null;
+
 function startHb() {
   stopHb();
   hbTimer = setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN && deviceId) {
       ws.send(JSON.stringify({ type: 'heartbeat', device_id: deviceId }));
-      elHb.textContent = new Date().toLocaleTimeString('en-US', {hour12:false});
     }
   }, 10_000);
+  
+  if (statTimer) clearInterval(statTimer);
+  totalBytesRecv = 0;
+  lastBytesRecv = 0;
+  statTimer = setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
+    }
+    if (isConnected) {
+      const diff = totalBytesRecv - lastBytesRecv;
+      lastBytesRecv = totalBytesRecv;
+      const kbps = (diff * 8) / 2 / 1000;
+      if (elDownSpeed) elDownSpeed.textContent = kbps.toFixed(1) + ' kbps';
+    } else {
+      if (elDownSpeed) elDownSpeed.textContent = '—';
+    }
+  }, 2000);
 }
-function stopHb() { if (hbTimer) { clearInterval(hbTimer); hbTimer = null; } }
+
+function stopHb() { 
+  if (hbTimer) { clearInterval(hbTimer); hbTimer = null; } 
+  if (statTimer) { clearInterval(statTimer); statTimer = null; }
+}
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 function connectWS() {
@@ -536,6 +560,11 @@ function connectWS() {
   ws.onerror = () => ws.close();
   ws.onmessage = (e) => {
     let msg; try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === 'pong') {
+      const rtt = Date.now() - msg.ts;
+      if (elLatency) elLatency.textContent = rtt + ' ms';
+      return;
+    }
     if (msg.type === 'snapshot') {
       knownStreams = new Set(msg.streams || []);
       if (deviceId) {
@@ -561,7 +590,7 @@ function connectWS() {
   };
 }
 
-// ── WebRTC connect ────────────────────────────────────────────────────────────
+// ── Audio Streaming via WebSocket ─────────────────────────────────────────────
 function getSelectedStreams() {
   const result = [];
   document.querySelectorAll('#streamList input[type=checkbox]:checked').forEach(cb => {
@@ -569,6 +598,8 @@ function getSelectedStreams() {
   });
   return result;
 }
+
+let audioSockets = [];
 
 async function connect() {
   let streams = assignedStreams.length > 0 ? [...assignedStreams] : getSelectedStreams();
@@ -581,70 +612,84 @@ async function connect() {
   try { await registerDevice(); }
   catch(e) { log('Register failed: '+e.message,'err'); btnConnect.disabled=false; setSys('ERROR','err'); return; }
 
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   elAudio.textContent = audioCtx.state.toUpperCase();
 
-  if (pc) { pc.close(); pc = null; gainNodes = {}; analyserNodes = []; }
+  // Close old sockets
+  audioSockets.forEach(s => s.close());
+  audioSockets = [];
+  gainNodes = {}; analyserNodes = [];
 
-  pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-  streams.forEach(() => pc.addTransceiver('audio', { direction: 'recvonly' }));
-
-  let trackIndex = 0;
-  pc.ontrack = (e) => {
-    const streamName = streams[trackIndex++] || ('stream_' + trackIndex);
-    log('Track received: ' + streamName);
-    const ms     = e.streams[0] || new MediaStream([e.track]);
-    const source = audioCtx.createMediaStreamSource(ms);
-    const gain   = audioCtx.createGain();
-    const an     = audioCtx.createAnalyser(); an.fftSize = 256;
+  setSys('CONNECTING...','warn');
+  
+  for (const streamName of streams) {
+    log('Connecting to stream: ' + streamName);
+    
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${proto}://${location.host}/ws/receiver/${encodeURIComponent(streamName)}`);
+    socket.binaryType = 'arraybuffer';
+    
+    const gain = audioCtx.createGain();
+    const an = audioCtx.createAnalyser(); an.fftSize = 256;
     gain.gain.value = 1.0;
-    source.connect(gain);
     gain.connect(an);
     gain.connect(audioCtx.destination);
+    
     gainNodes[streamName] = gain;
     analyserNodes.push(an);
-    document.getElementById('vizLabel').textContent = 'LIVE: ' + streamName;
-    setSys('PLAYING', 'live');
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    elAudio.textContent = 'RUNNING';
-
-    const sl = document.querySelector(`[data-gain="${streamName}"]`);
-    if (sl) sl.addEventListener('input', () => { gain.gain.value = parseFloat(sl.value); });
-  };
-
-  pc.oniceconnectionstatechange = () => {
-    const s = pc.iceConnectionState;
-    elIce.textContent = s.toUpperCase();
-    if (s === 'connected' || s === 'completed') { setSys('PLAYING','live'); isConnected=true; }
-    if (s === 'failed' || s === 'closed') {
-      setSys('LINK LOST','err'); isConnected=false;
-      btnConnect.disabled=false; btnDiscon.disabled=true;
-      log('Connection lost', 'err');
-    }
-  };
-
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  await new Promise(r => {
-    if (pc.iceGatheringState==='complete') { r(); return; }
-    pc.onicegatheringstatechange = () => { if(pc.iceGatheringState==='complete') r(); };
-    setTimeout(r, 5000);
-  });
-
-  setSys('NEGOTIATING...','warn');
-  let answer;
-  try {
-    const res = await fetch('/receiver/offer', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ streams, sdp: pc.localDescription })
-    });
-    if (!res.ok) throw new Error('Offer HTTP '+res.status);
-    answer = await res.json();
-  } catch(e) { log('Offer failed: '+e.message,'err'); btnConnect.disabled=false; setSys('ERROR','err'); return; }
-
-  await pc.setRemoteDescription(answer);
-  if (audioCtx.state === 'suspended') await audioCtx.resume();
+    
+    let nextPlayTime = 0;
+    
+    socket.onopen = () => {
+      log(`WebSocket audio connected: ${streamName}`);
+      document.getElementById('vizLabel').textContent = 'LIVE: ' + streamName;
+      setSys('PLAYING', 'live');
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      elAudio.textContent = 'RUNNING';
+      
+      const sl = document.querySelector(`[data-gain="${streamName}"]`);
+      if (sl) sl.addEventListener('input', () => { gain.gain.value = parseFloat(sl.value); });
+    };
+    
+    socket.onmessage = (e) => {
+      totalBytesRecv += e.data.byteLength;
+      if (audioCtx.state === 'suspended') return;
+      const f32 = new Float32Array(e.data);
+      const frames = f32.length / 2;
+      const buffer = audioCtx.createBuffer(2, frames, 48000);
+      const left = buffer.getChannelData(0);
+      const right = buffer.getChannelData(1);
+      
+      for (let i = 0; i < frames; i++) {
+        left[i] = f32[i*2];
+        right[i] = f32[i*2+1];
+      }
+      
+      const src = audioCtx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(gain);
+      
+      const currentTime = audioCtx.currentTime;
+      if (nextPlayTime < currentTime) {
+        nextPlayTime = currentTime + 0.05; // 50ms buffer for latency smoothing
+      }
+      src.start(nextPlayTime);
+      nextPlayTime += buffer.duration;
+    };
+    
+    socket.onclose = () => {
+      log(`Stream ${streamName} disconnected.`, 'warn');
+      const idx = analyserNodes.indexOf(an);
+      if (idx > -1) analyserNodes.splice(idx, 1);
+    };
+    
+    socket.onerror = () => {
+      log(`Error on stream ${streamName}.`, 'err');
+    };
+    
+    audioSockets.push(socket);
+  }
 
   startHb();
   isConnected = true;
@@ -656,11 +701,15 @@ async function connect() {
 async function disconnect() {
   stopHb();
   isConnected = false;
-  if (pc) { pc.close(); pc = null; }
+  
+  audioSockets.forEach(s => s.close());
+  audioSockets = [];
+  
   gainNodes = {}; analyserNodes = [];
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
   elAudio.textContent = '—';
-  elIce.textContent   = '—';
+  if (elLatency) elLatency.textContent = '—';
+  if (elDownSpeed) elDownSpeed.textContent = '—';
   document.getElementById('vizLabel').textContent = 'STANDBY';
   setSys('IDLE','idle');
   if (deviceId) {

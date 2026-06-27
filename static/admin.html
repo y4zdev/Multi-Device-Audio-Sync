@@ -172,7 +172,27 @@
   </header>
 
   <main class="core">
-    <!-- CREATE USER -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+      <!-- NETWORK SETTINGS -->
+      <section class="panel">
+        <div class="panel-hdr"><span>00 / Network Settings</span></div>
+        <form id="settingsForm">
+          <div class="field">
+            <label>Streaming Method</label>
+            <select id="s_mode">
+              <option value="lan">LAN (Use Local IP)</option>
+              <option value="server">SERVER (Use Server IP)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Server Public IP (For SERVER mode)</label>
+            <input type="text" id="s_ip" placeholder="e.g. 203.0.113.50">
+          </div>
+          <button type="submit" class="primary">Save & Restart Needed</button>
+        </form>
+      </section>
+
+      <!-- CREATE USER -->
     <section class="panel">
       <div class="panel-hdr"><span>01 / Create User</span></div>
       <form id="createUserForm">
@@ -304,6 +324,44 @@
     }
   }
 
+  async function loadSettings() {
+    try {
+      const res = await fetch('/admin/api/settings');
+      const data = await res.json();
+      document.getElementById('s_mode').value = data.mode || 'lan';
+      document.getElementById('s_ip').value = data.server_ip || '';
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+    }
+  }
+
+  document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    btn.textContent = 'Saving...';
+    btn.disabled = true;
+    
+    const payload = {
+      mode: document.getElementById('s_mode').value,
+      server_ip: document.getElementById('s_ip').value.trim()
+    };
+    
+    try {
+      const res = await fetch('/admin/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(await res.text());
+      alert('Settings saved successfully! You MUST restart the server application for changes to take effect.');
+    } catch (err) {
+      alert('Error saving settings: ' + err.message);
+    } finally {
+      btn.textContent = 'Save & Restart Needed';
+      btn.disabled = false;
+    }
+  });
+
   document.getElementById('createUserForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button');
@@ -334,6 +392,7 @@
   });
 
   // Initial loads and polling
+  loadSettings();
   loadUsers();
   loadDevices();
   setInterval(loadDevices, 5000);
