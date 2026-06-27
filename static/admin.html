@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AirLink // ADMIN</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #09090b;
+      --bg-panel: rgba(24, 24, 27, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-primary: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-danger: #ef4444;
+      --accent-success: #22c55e;
+      --accent-warning: #f59e0b;
+      --accent-purple: #a855f7;
+      --font-ui: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+    
+    .bg-static {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.04), transparent 50%),
+                  radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.03), transparent 50%);
+    }
+
+    .hud {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+      gap: 24px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+      flex-shrink: 0;
+    }
+
+    .brand { display: flex; align-items: baseline; gap: 8px; }
+    .brand h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; color: #fff; }
+    .brand span { font-size: 0.8rem; color: var(--accent-danger); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .header-right { display: flex; align-items: center; gap: 24px; font-size: 0.85rem; font-weight: 500; }
+    .nav-link { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .nav-link:hover { color: var(--text-main); }
+    .user-profile { width: 32px; height: 32px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid var(--border-color); }
+    .user-profile:hover { background: rgba(255,255,255,0.15); }
+
+    .core { display: grid; grid-template-columns: 350px 1fr; gap: 24px; align-items: start; }
+
+    .panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    
+    .panel-hdr {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .field label { font-size: 0.75rem; font-weight: 500; color: var(--text-muted); }
+    .field input, .field select {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: var(--font-ui);
+      font-size: 0.9rem;
+      width: 100%;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--accent-primary); background: rgba(0, 0, 0, 0.5); }
+    .field select option { background: #18181b; }
+
+    button.primary {
+      width: 100%; border: none; border-radius: 8px; padding: 14px 20px;
+      font-size: 0.9rem; font-weight: 600; letter-spacing: 0.02em;
+      cursor: pointer; transition: all 0.2s ease;
+      background: var(--accent-primary); color: #fff;
+    }
+    button.primary:hover { background: var(--accent-hover); }
+    button.primary:active { transform: scale(0.98); }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    .data-table th { color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 0.75rem; }
+    .data-table td { font-family: var(--font-mono); }
+    .data-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+    .role-badge { font-size: 0.7rem; font-weight: 600; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; display: inline-block; }
+    .role-mic { background: rgba(168, 85, 247, 0.1); color: var(--accent-purple); border: 1px solid rgba(168, 85, 247, 0.2); }
+    .role-speaker { background: rgba(59, 130, 246, 0.1); color: var(--accent-primary); border: 1px solid rgba(59, 130, 246, 0.2); }
+    .role-controller { background: rgba(245, 158, 11, 0.1); color: var(--accent-warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .role-admin { background: rgba(239, 68, 68, 0.1); color: var(--accent-danger); border: 1px solid rgba(239, 68, 68, 0.2); }
+
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .dot-on { background: var(--accent-success); box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
+    .dot-off { background: var(--text-muted); }
+    .dot-live { background: var(--accent-primary); box-shadow: 0 0 8px rgba(59, 130, 246, 0.4); }
+
+    @media (max-width: 900px) {
+      .core { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="bg-static"></div>
+
+<div class="hud">
+  <header class="header-bar">
+    <div class="brand">
+      <h1>AirLink</h1>
+      <span>Admin</span>
+    </div>
+    <div class="header-right">
+      <a class="nav-link" href="/sender">Sender</a>
+      <a class="nav-link" href="/receiver">Receiver</a>
+      <a class="nav-link" href="/controller">Controller</a>
+      <a class="nav-link" href="/admin" style="color:#fff;">Admin</a>
+      <div class="user-profile" title="Logout" onclick="window.location.href='/logout'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      </div>
+    </div>
+  </header>
+
+  <main class="core">
+    <!-- CREATE USER -->
+    <section class="panel">
+      <div class="panel-hdr"><span>01 / Create User</span></div>
+      <form id="createUserForm">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="c_user" required placeholder="New username">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="c_pass" required placeholder="••••••••">
+        </div>
+        <div class="field">
+          <label>Role</label>
+          <select id="c_role">
+            <option value="speaker">Speaker</option>
+            <option value="mic">Mic</option>
+            <option value="controller">Controller</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button type="submit" class="primary">Create User</button>
+      </form>
+    </section>
+
+    <!-- LISTS -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+      <!-- USERS LIST -->
+      <section class="panel">
+        <div class="panel-hdr"><span>02 / System Users</span></div>
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="usersTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- injected via JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ACTIVE DEVICES LIST -->
+      <section class="panel">
+        <div class="panel-hdr"><span>03 / Active Devices</span></div>
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="devicesTable">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Volume</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- injected via JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+  function getRoleClass(role) {
+    return {
+      'mic': 'role-mic',
+      'speaker': 'role-speaker',
+      'controller': 'role-controller',
+      'admin': 'role-admin'
+    }[role.toLowerCase()] || 'role-controller';
+  }
+
+  function getStatusClass(dev) {
+    const isOffline = dev.last_seen && (Date.now() - dev.last_seen) > 15000;
+    if (isOffline) return 'dot-off';
+    if (dev.status === 'live') return 'dot-live';
+    return 'dot-on';
+  }
+
+  async function loadUsers() {
+    try {
+      const res = await fetch('/admin/api/users');
+      const users = await res.json();
+      const tbody = document.querySelector('#usersTable tbody');
+      tbody.innerHTML = '';
+      users.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="color:var(--text-muted); font-size:0.75rem;">${u.id.substring(0,8)}...</td>
+          <td>${u.username}</td>
+          <td><span class="role-badge ${getRoleClass(u.role)}">${u.role}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function loadDevices() {
+    try {
+      const res = await fetch('/devices');
+      const devices = await res.json();
+      const tbody = document.querySelector('#devicesTable tbody');
+      tbody.innerHTML = '';
+      if (devices.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No active devices</td></tr>`;
+        return;
+      }
+      devices.forEach(d => {
+        const tr = document.createElement('tr');
+        const off = d.last_seen && (Date.now() - d.last_seen) > 15000;
+        tr.innerHTML = `
+          <td><span class="status-dot ${getStatusClass(d)}"></span> ${off ? 'Offline' : d.status.toUpperCase()}</td>
+          <td>${d.name}</td>
+          <td><span class="role-badge ${getRoleClass(d.role)}">${d.role}</span></td>
+          <td>${Math.round(d.volume * 100)}%</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  document.getElementById('createUserForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    btn.textContent = 'Creating...';
+    btn.disabled = true;
+    
+    const payload = {
+      username: document.getElementById('c_user').value.trim(),
+      password: document.getElementById('c_pass').value,
+      role: document.getElementById('c_role').value
+    };
+    
+    try {
+      const res = await fetch('/admin/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(await res.text());
+      e.target.reset();
+      await loadUsers();
+    } catch (err) {
+      alert('Error creating user: ' + err.message);
+    } finally {
+      btn.textContent = 'Create User';
+      btn.disabled = false;
+    }
+  });
+
+  // Initial loads and polling
+  loadUsers();
+  loadDevices();
+  setInterval(loadDevices, 5000);
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@ Capture audio on one device and route it to one or many speakers over your local
 
 ## Architecture
 
-Three device roles operate over a self-hosted HTTPS server:
+Three device roles operate over a self-hosted HTTP server:
 
 | Role | Page | What it does |
 |---|---|---|
@@ -31,32 +31,17 @@ cargo build --release
 ./target/release/multi-device-audio-sync
 ```
 
-The server binds to `0.0.0.0:8443` (HTTPS).  
-On startup it prints your LAN IP and the trust URL:
+The server binds to `0.0.0.0:8080` (HTTP).  
+On startup it prints your LAN IP and the URLs:
 
 ```
 Detected LAN IP : 192.168.1.42
 ─────────────────────────────────────────────
- Trust cert first : https://192.168.1.42:8443/cert
- Receiver         : https://192.168.1.42:8443
- Sender           : https://192.168.1.42:8443/sender
- Manager          : https://192.168.1.42:8443/manager
+ Receiver         : http://192.168.1.42:8080
+ Sender           : http://192.168.1.42:8080/sender
+ Manager          : http://192.168.1.42:8080/manager
 ─────────────────────────────────────────────
 ```
-
-### 2. Trust the certificate (every new device)
-
-The server generates a self-signed TLS certificate on each startup. Every device that connects must trust it once.
-
-Open `https://<LAN-IP>:8443/cert` on the device and follow the instructions:
-
-- **Desktop Chrome / Firefox** — click *Advanced → Proceed* in the browser warning. No install needed.
-- **Android** — download `cert.pem`, then Settings → Security → Install certificate → CA certificate.
-- **iOS** — open the `.pem` file to install a profile, then Settings → General → VPN & Device Management → trust it, then Settings → About → Certificate Trust Settings → enable it.
-
-> The certificate is regenerated on every server restart. You must re-trust it after restarting.
-
----
 
 ## Using the system
 
@@ -101,8 +86,6 @@ The sender registers itself as a `mic` device, sends a heartbeat every 10 s, and
 | `GET` | `/` or `/receiver` | Receiver page |
 | `GET` | `/sender` | Sender page |
 | `GET` | `/manager` | Manager page |
-| `GET` | `/cert` | Certificate trust instructions |
-| `GET` | `/cert.pem` | Download self-signed cert |
 | `GET` | `/streams` | List active stream names |
 | `POST` | `/sender/offer` | WebRTC offer from sender |
 | `POST` | `/receiver/offer` | WebRTC offer from receiver |
@@ -119,7 +102,6 @@ The sender registers itself as a `mic` device, sends a heartbeat every 10 s, and
 ## Known limitations
 
 - **LAN only.** WebRTC uses a single STUN server (`stun.l.google.com`). Connections across NAT boundaries or over the internet are not supported without a TURN relay.
-- **Certificate regenerates on restart.** Every server restart generates a new self-signed cert. All devices must re-trust after a restart.
 - **System audio source is Linux-only.** The `cpal` system capture path targets PulseAudio. On Windows or macOS, use the `Browser Mic` or `Display Audio` sources instead.
 - **Browser autoplay policy.** Browsers block audio playback until a user gesture occurs. The receiver page handles this by resuming the `AudioContext` on the first subscribe click. If audio is silent, tap anywhere on the page first.
 - **No persistent state.** Device registrations and stream assignments are held in memory only. Everything resets on server restart.

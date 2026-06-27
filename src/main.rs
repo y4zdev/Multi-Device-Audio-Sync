@@ -8,17 +8,19 @@ use axum::{
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use axum_server::tls_rustls::RustlsConfig;
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use dashmap::DashMap;
-use rcgen::{CertificateParams, DistinguishedName, SanType};
 use serde::{Deserialize, Serialize};
 use std::net::UdpSocket;
 use std::process::Command;
 use std::sync::{Arc, Condvar, Mutex};
 use tokio::runtime::Handle;
 use tokio::sync::{broadcast, oneshot};
+
+mod db;
+mod auth;
+
 use webrtc::{
     api::{
         interceptor_registry::register_default_interceptors,
@@ -139,7 +141,7 @@ struct AppState {
     streams:  Arc<DashMap<String, Arc<TrackLocalStaticSample>>>,
     devices:  Arc<DashMap<String, DeviceInfo>>,
     event_tx: broadcast::Sender<ControlEvent>,
-    cert_pem: Arc<String>,
+    db:       Arc<db::Db>,
 }
 
 // ── LAN IP ────────────────────────────────────────────────────────────────────
@@ -151,39 +153,11 @@ fn local_lan_ip() -> String {
         .unwrap_or_else(|_| "127.0.0.1".to_string())
 }
 
-// ── Self-signed TLS cert ──────────────────────────────────────────────────────
-
-fn make_self_signed_cert(lan_ip: &str) -> Result<(Vec<u8>, Vec<u8>)> {
-    let mut params = CertificateParams::new(vec![
-        "localhost".to_string(),
-        lan_ip.to_string(),
-    ])
-    .map_err(|e| anyhow!("CertificateParams: {e}"))?;
-
-    params.distinguished_name = DistinguishedName::new();
-
-    if let Ok(ip) = lan_ip.parse::<std::net::IpAddr>() {
-        params.subject_alt_names.push(SanType::IpAddress(ip));
-    }
-    params.subject_alt_names
-        .push(SanType::IpAddress("127.0.0.1".parse().unwrap()));
-
-    let key_pair = rcgen::KeyPair::generate()
-        .map_err(|e| anyhow!("KeyPair::generate: {e}"))?;
-    let cert = params.self_signed(&key_pair)
-        .map_err(|e| anyhow!("self_signed: {e}"))?;
-
-    Ok((cert.pem().into_bytes(), key_pair.serialize_pem().into_bytes()))
-}
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .map_err(|_| anyhow!("Failed to install rustls ring CryptoProvider"))?;
-
     let mut media_engine = MediaEngine::default();
     media_engine.register_default_codecs()?;
 
@@ -205,36 +179,34 @@ async fn main() -> Result<()> {
     let lan_ip = local_lan_ip();
     println!("Detected LAN IP : {lan_ip}");
 
-    let (cert_pem_bytes, key_pem_bytes) = make_self_signed_cert(&lan_ip)?;
-    let cert_pem_str = String::from_utf8(cert_pem_bytes.clone()).unwrap_or_default();
-
-    match std::fs::write("cert.pem", &cert_pem_bytes) {
-        Ok(_)  => println!("cert.pem written (share with devices to trust)"),
-        Err(e) => eprintln!("Warning: could not write cert.pem: {e}"),
-    }
-
-    let tls_config = RustlsConfig::from_pem(cert_pem_bytes, key_pem_bytes)
-        .await
-        .map_err(|e| anyhow!("TLS config error: {e}"))?;
-
     let (event_tx, _) = broadcast::channel::<ControlEvent>(256);
 
-    let state = AppState {
+    let db = Arc::new(db::Db::new("airlink.db").unwrap());
+    db.init_default_admin();
+
+    let state = Arc::new(AppState {
         api,
         streams:  Arc::new(DashMap::new()),
         devices:  Arc::new(DashMap::new()),
         event_tx,
-        cert_pem: Arc::new(cert_pem_str),
-    };
+        db,
+    });
 
-    let app = Router::new()
-        // Pages
-        .route("/",         get(receiver_handler))
+    use axum::middleware;
+    
+    let pages = Router::new()
         .route("/sender",   get(sender_handler))
         .route("/receiver", get(receiver_handler))
-        .route("/manager",  get(manager_handler))
-        .route("/cert",     get(cert_page_handler))
-        .route("/cert.pem", get(cert_download_handler))
+        .route("/controller",get(controller_handler))
+        .route("/admin",    get(admin_handler))
+        .route("/admin/api/users", get(auth::list_users).post(auth::create_user))
+        .route("/",         get(receiver_handler))
+        .route_layer(middleware::from_fn_with_state(state.clone(), auth::require_role));
+
+    let app = Router::new()
+        .merge(pages)
+        .route("/login",    get(auth::login_page).post(auth::login_post))
+        .route("/logout",   get(auth::logout))
         // Stream API
         .route("/streams",        get(list_streams))
         .route("/sender/offer",   post(handle_sender_offer))
@@ -250,15 +222,14 @@ async fn main() -> Result<()> {
         .route("/ws", get(ws_handler))
         .with_state(state);
 
-    let bind_addr: std::net::SocketAddr = "0.0.0.0:8443".parse()?;
+    let bind_addr: std::net::SocketAddr = "0.0.0.0:8080".parse()?;
     println!("─────────────────────────────────────────────");
-    println!(" Trust cert first : https://{lan_ip}:8443/cert");
-    println!(" Receiver         : https://{lan_ip}:8443");
-    println!(" Sender           : https://{lan_ip}:8443/sender");
-    println!(" Manager          : https://{lan_ip}:8443/manager");
+    println!(" Receiver         : http://{lan_ip}:8080");
+    println!(" Sender           : http://{lan_ip}:8080/sender");
+    println!(" Manager          : http://{lan_ip}:8080/manager");
     println!("─────────────────────────────────────────────");
 
-    axum_server::bind_rustls(bind_addr, tls_config)
+    axum_server::bind(bind_addr)
         .serve(app.into_make_service())
         .await
         .map_err(|e| anyhow!("server error: {e}"))
@@ -274,82 +245,26 @@ async fn sender_handler() -> Html<&'static str> {
     Html(include_str!("../static/sender.html"))
 }
 
-async fn manager_handler() -> Html<&'static str> {
-    Html(include_str!("../static/manager.html"))
+async fn controller_handler() -> Html<&'static str> {
+    Html(include_str!("../static/controller.html"))
 }
 
-// cert_page_handler serves a static instructions page — no state needed
-async fn cert_page_handler() -> Html<&'static str> {
-    Html(r#"<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Y4Z // Trust Certificate</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#050608;color:#d1d5db;font-family:'Share Tech Mono',monospace;
-         display:flex;flex-direction:column;align-items:center;justify-content:center;
-         min-height:100dvh;padding:24px;gap:20px;}
-    h1{color:#00f0ff;font-size:1.4rem;letter-spacing:3px;text-transform:uppercase;text-align:center;}
-    p{color:#6b7280;font-size:0.85rem;max-width:500px;text-align:center;line-height:1.6;}
-    .card{background:rgba(10,12,16,0.92);border:1px solid rgba(0,240,255,0.3);
-          padding:20px;max-width:500px;width:100%;display:flex;flex-direction:column;gap:12px;}
-    .step{display:flex;gap:10px;align-items:flex-start;}
-    .num{color:#00f0ff;font-size:1rem;min-width:24px;}
-    .desc{color:#d1d5db;font-size:0.82rem;line-height:1.5;}
-    .desc b{color:#fcee0a;}
-    a.btn{display:block;text-align:center;padding:12px;background:rgba(0,240,255,0.08);
-           border:1px solid #00f0ff;color:#00f0ff;text-decoration:none;
-           font-size:0.9rem;letter-spacing:2px;transition:background 0.2s;}
-    a.btn:hover{background:#00f0ff;color:#000;}
-    .warn{color:#ff8800;font-size:0.78rem;text-align:center;}
-  </style>
-</head>
-<body>
-  <h1>// Trust Certificate</h1>
-  <p>To use Audio_Sync_LINK on this device, you need to trust the self-signed certificate once.</p>
-  <div class="card">
-    <div class="step"><span class="num">1.</span><span class="desc">Tap the button below to <b>download cert.pem</b> to this device.</span></div>
-    <a class="btn" href="/cert.pem" download="y4z-cert.pem">&#x2B07; Download cert.pem</a>
-    <div class="step"><span class="num">2.</span><span class="desc"><b>Android:</b> Settings &#x2192; Security &#x2192; Install certificate &#x2192; CA certificate &#x2192; pick the file.</span></div>
-    <div class="step"><span class="num">2.</span><span class="desc"><b>iOS:</b> Open the .pem file &#x2192; installs a profile. Then Settings &#x2192; General &#x2192; VPN &amp; Device Management &#x2192; trust it. Then Settings &#x2192; About &#x2192; Certificate Trust Settings &#x2192; enable it.</span></div>
-    <div class="step"><span class="num">3.</span><span class="desc"><b>Desktop Chrome/Firefox:</b> Navigate to the URL below and click <b>Advanced &#x2192; Proceed</b>. No install needed.</span></div>
-    <div class="step"><span class="num">4.</span><span class="desc">Come back here and open the app links below.</span></div>
-  </div>
-  <div class="card">
-    <a class="btn" href="/receiver">&#x25B6; Open Receiver</a>
-    <a class="btn" href="/sender">&#x25B6; Open Sender</a>
-    <a class="btn" href="/manager">&#x25B6; Open Manager</a>
-  </div>
-  <div class="warn">Certificate is re-generated on each server restart. Re-trust if you restart the server.</div>
-</body>
-</html>"#)
+async fn admin_handler() -> Html<&'static str> {
+    Html(include_str!("../static/admin.html"))
 }
 
-async fn cert_download_handler(
-    State(state): State<AppState>,
-) -> impl axum::response::IntoResponse {
-    (
-        [
-            (axum::http::header::CONTENT_TYPE, "application/x-pem-file"),
-            (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"y4z-cert.pem\""),
-        ],
-        state.cert_pem.as_bytes().to_vec(),
-    )
-}
 
 // ── Stream API handlers ────────────────────────────────────────────────────────
 
 async fn list_streams(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
 ) -> Json<StreamsResponse> {
     let streams: Vec<String> = state.streams.iter().map(|e| e.key().clone()).collect();
     Json(StreamsResponse { streams })
 }
 
 async fn remove_stream(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> axum::http::StatusCode {
     state.streams.remove(&name);
@@ -368,7 +283,7 @@ fn now_ms() -> u64 {
 }
 
 async fn register_device(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Json(req): Json<RegisterDeviceRequest>,
 ) -> (axum::http::StatusCode, Json<DeviceInfo>) {
     let id = req.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -388,14 +303,14 @@ async fn register_device(
 }
 
 async fn list_devices(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
 ) -> Json<Vec<DeviceInfo>> {
     let devices: Vec<DeviceInfo> = state.devices.iter().map(|e| e.value().clone()).collect();
     Json(devices)
 }
 
 async fn remove_device(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> axum::http::StatusCode {
     state.devices.remove(&id);
@@ -405,7 +320,7 @@ async fn remove_device(
 }
 
 async fn patch_device_volume(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(req): Json<PatchVolumeRequest>,
 ) -> axum::http::StatusCode {
@@ -428,7 +343,7 @@ async fn patch_device_volume(
 }
 
 async fn patch_device_streams(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(req): Json<PatchStreamsRequest>,
 ) -> axum::http::StatusCode {
@@ -463,13 +378,13 @@ async fn patch_device_streams(
 // ── WebSocket control bus ─────────────────────────────────────────────────────
 
 async fn ws_handler(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     ws: WebSocketUpgrade,
 ) -> impl axum::response::IntoResponse {
     ws.on_upgrade(move |socket| handle_ws(socket, state))
 }
 
-async fn handle_ws(mut socket: WebSocket, state: AppState) {
+async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
     let mut rx = state.event_tx.subscribe();
 
     let snapshot_streams: Vec<String> = state.streams.iter().map(|e| e.key().clone()).collect();
@@ -525,7 +440,7 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
 // ── WebRTC offer handlers ──────────────────────────────────────────────────────
 
 async fn handle_sender_offer(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Json(req): Json<SenderOfferRequest>,
 ) -> Json<RTCSessionDescription> {
     let name   = req.name.clone();
@@ -589,7 +504,7 @@ async fn handle_sender_offer(
 }
 
 async fn handle_receiver_offer(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Json(req): Json<ReceiverOfferRequest>,
 ) -> Json<RTCSessionDescription> {
     let pc = build_peer_connection(&state).await;

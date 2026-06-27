@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AirLink // MANAGER</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #09090b;
+      --bg-panel: rgba(24, 24, 27, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-primary: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-danger: #ef4444;
+      --accent-success: #22c55e;
+      --accent-warning: #f59e0b;
+      --accent-purple: #a855f7;
+      --font-ui: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      display: grid;
+      grid-template-rows: 72px 1fr;
+      grid-template-columns: 300px 1fr 340px;
+      grid-template-areas: 'hdr hdr hdr' 'left center right';
+      gap: 16px;
+      padding: 16px;
+    }
+    
+    .bg-static {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.04), transparent 50%),
+                  radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.03), transparent 50%);
+    }
+
+    /* ── header ── */
+    header {
+      grid-area: hdr;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    }
+    
+    .brand { display: flex; align-items: baseline; gap: 8px; }
+    .brand h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+    .brand span {
+      font-size: 0.8rem;
+      color: var(--accent-primary);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .hdr-right { display: flex; align-items: center; gap: 24px; margin-left: auto; font-size: 0.85rem; font-weight: 500; }
+    .nav-link { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .nav-link:hover { color: var(--text-main); }
+    
+    .ws-badge {
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border-color);
+    }
+    .ws-ok { color: var(--accent-success); border-color: rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.1); }
+    .ws-err { color: var(--accent-danger); border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); }
+    .ws-wait { color: var(--text-muted); }
+
+    /* ── panels ── */
+    .panel-wrap {
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #panelLeft { grid-area: left; }
+    #panelCenter { grid-area: center; }
+    #panelRight { grid-area: right; }
+    
+    .panel-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* ── device list (Left) ── */
+    .list-content { overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .list-content::-webkit-scrollbar { width: 4px; }
+    .list-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    .dev-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dev-card:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.04); }
+    .dev-card.selected { border-color: var(--accent-primary); background: rgba(59, 130, 246, 0.05); }
+    .dev-card.offline { opacity: 0.5; }
+    
+    .dc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .dc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-on { background: var(--accent-success); box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
+    .dot-off { background: var(--text-muted); }
+    .dot-live { background: var(--accent-primary); box-shadow: 0 0 8px rgba(59, 130, 246, 0.4); }
+    
+    .dc-name { flex: 1; font-size: 0.95rem; font-weight: 500; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dc-role { font-size: 0.7rem; font-weight: 500; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+    .role-mic { background: rgba(168, 85, 247, 0.1); color: var(--accent-purple); border: 1px solid rgba(168, 85, 247, 0.2); }
+    .role-speaker { background: rgba(59, 130, 246, 0.1); color: var(--accent-primary); border: 1px solid rgba(59, 130, 246, 0.2); }
+    .role-controller { background: rgba(245, 158, 11, 0.1); color: var(--accent-warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+    
+    .dc-meta { font-size: 0.75rem; color: var(--text-muted); }
+    .dc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .stream-chip { font-size: 0.7rem; font-weight: 500; padding: 2px 8px; background: rgba(59, 130, 246, 0.1); color: var(--accent-primary); border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.2); }
+
+    /* ── diagram (Center) ── */
+    #diagram { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+    #diagramSvg { width: 100%; height: 100%; flex: 1; }
+    .diag-hint { position: absolute; bottom: 20px; left: 20px; font-size: 0.85rem; color: var(--text-muted); font-weight: 500; pointer-events: none; }
+    .diag-mode { position: absolute; top: 20px; right: 20px; font-size: 0.75rem; color: var(--accent-warning); font-weight: 600; pointer-events: none; background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px; }
+
+    /* ── right panel detail ── */
+    .detail-content { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 20px; }
+    .detail-section { display: flex; flex-direction: column; gap: 8px; }
+    .detail-label { font-size: 0.75rem; font-weight: 500; color: var(--text-muted); text-transform: uppercase; }
+    .detail-val { font-size: 0.95rem; font-weight: 500; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+    
+    .vol-row { display: flex; align-items: center; gap: 12px; }
+    .vol-row input[type=range] { flex: 1; accent-color: var(--accent-primary); cursor: pointer; }
+    .vol-val { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-main); min-width: 44px; text-align: right; }
+    
+    .assign-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; }
+    .assign-row input[type=checkbox] { accent-color: var(--accent-primary); width: 16px; height: 16px; cursor: pointer; }
+    .assign-row label { flex: 1; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
+    
+    .btn-remove {
+      width: 100%; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2);
+      color: var(--accent-danger); font-size: 0.85rem; font-weight: 600; border-radius: 8px;
+      cursor: pointer; transition: all 0.2s; margin-top: auto;
+    }
+    .btn-remove:hover { background: rgba(239, 68, 68, 0.2); }
+    .empty-hint { font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 20px; }
+    
+    hr.sep { border: none; border-top: 1px solid var(--border-color); margin: 8px 0; }
+
+    @media (max-width: 1000px) {
+      body {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto;
+        grid-template-areas: 'hdr' 'left' 'center' 'right';
+        overflow: auto; height: auto;
+      }
+      #panelCenter { min-height: 500px; }
+    }
+  </style>
+</head>
+<body>
+<div class="bg-static"></div>
+
+<header>
+  <div class="brand">
+    <h1>AirLink</h1>
+    <span>Controller</span>
+  </div>
+  <div class="hdr-right">
+    <a class="nav-link" href="/sender">Sender</a>
+    <a class="nav-link" href="/receiver">Receiver</a>
+    <a class="nav-link" href="/controller">Controller</a>
+    <a class="nav-link" href="/admin">Admin</a>
+    <div class="user-profile" style="width: 32px; height: 32px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid var(--border-color);" title="User Profile" onclick="window.location.href='/logout'">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+    </div>
+  </div>
+</header>
+
+<!-- LEFT: device list -->
+<div class="panel-wrap" id="panelLeft">
+  <div class="panel-title">Devices</div>
+  <div id="deviceList" class="list-content"><div class="empty-hint">No devices</div></div>
+</div>
+
+<!-- CENTER: diagram -->
+<div class="panel-wrap" id="panelCenter">
+  <div class="panel-title">
+    <span>Routing Diagram</span>
+    <span id="diagStreamCount" style="color:var(--text-muted); font-weight:500; font-size:0.8rem;">0 streams</span>
+  </div>
+  <div id="diagram">
+    <svg id="diagramSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="diag-hint" id="diagHint">Click a MIC, then click a SPEAKER to route.</div>
+    <div class="diag-mode" id="diagMode">MODE: IDLE</div>
+  </div>
+</div>
+
+<!-- RIGHT: device detail -->
+<div class="panel-wrap" id="panelRight">
+  <div class="panel-title">
+    <span>Device Details</span>
+    <span id="wsBadge" class="ws-badge ws-wait">Connecting...</span>
+  </div>
+  <div id="deviceDetail" class="detail-content"><div class="empty-hint">Select a device</div></div>
+</div>
+
+<script>
+'use strict';
+// ── state ─────────────────────────────────────────────────────────────────────
+const OFFLINE_MS = 15_000;
+let devices    = {};  
+let streams    = new Set();
+let selectedId = null;
+let ws         = null;
+let pendingMic = null;  
+
+// ── DOM ───────────────────────────────────────────────────────────────────────
+const elDevList   = document.getElementById('deviceList');
+const elDetail    = document.getElementById('deviceDetail');
+const elWsBadge   = document.getElementById('wsBadge');
+const elDiagSvg   = document.getElementById('diagramSvg');
+const elDiagHint  = document.getElementById('diagHint');
+const elDiagMode  = document.getElementById('diagMode');
+const elStreamCnt = document.getElementById('diagStreamCount');
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+function isOffline(dev) { return dev.last_seen && (Date.now() - dev.last_seen) > OFFLINE_MS; }
+function dotClass(dev) {
+  if (isOffline(dev)) return 'dot-off';
+  if (dev.status === 'live') return 'dot-live';
+  return 'dot-on';
+}
+function roleClass(r) { return {mic:'role-mic',speaker:'role-speaker',controller:'role-controller'}[r]||'role-controller'; }
+
+// ── render device list ────────────────────────────────────────────────────────
+function renderDevices() {
+  const list = Object.values(devices);
+  if (list.length === 0) { elDevList.innerHTML = '<div class="empty-hint">No devices</div>'; return; }
+  elDevList.innerHTML = '';
+  list.forEach(dev => {
+    const off  = isOffline(dev);
+    const card = document.createElement('div');
+    card.className = 'dev-card' + (off?' offline':'') + (dev.id===selectedId?' selected':'');
+    card.dataset.id = dev.id;
+    const chips = (dev.assigned_streams||[]).map(s=>`<span class="stream-chip">${s}</span>`).join('');
+    const ago   = dev.last_seen ? Math.round((Date.now()-dev.last_seen)/1000)+'s ago' : 'never';
+    card.innerHTML = `
+      <div class="dc-top">
+        <span class="dc-dot ${dotClass(dev)}"></span>
+        <span class="dc-name">${dev.name}</span>
+        <span class="dc-role ${roleClass(dev.role)}">${dev.role}</span>
+      </div>
+      <div class="dc-meta">Volume: ${(dev.volume*100).toFixed(0)}% &bull; ${ago}</div>
+      ${chips?'<div class="dc-chips">'+chips+'</div>':''}`;
+    card.addEventListener('click', () => selectDevice(dev.id));
+    elDevList.appendChild(card);
+  });
+}
+
+// ── render diagram ────────────────────────────────────────────────────────────
+function renderDiagram() {
+  const svg = elDiagSvg;
+  const W = svg.clientWidth  || svg.parentElement.clientWidth  || 600;
+  const H = svg.clientHeight || svg.parentElement.clientHeight || 400;
+  svg.innerHTML = '';
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  elStreamCnt.textContent = streams.size + ' active streams';
+
+  svg.innerHTML = `
+    <defs>
+      <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="rgba(59, 130, 246, 0.8)"/>
+      </marker>
+    </defs>`;
+
+  const mics = Object.values(devices).filter(d => d.role==='mic');
+  const spks = Object.values(devices).filter(d => d.role==='speaker');
+  const cx   = W/2, cy = H/2;
+  const LX   = 100,  RX = W-100;
+  const NODE_R = 30;
+
+  const nodePos = {};
+
+  function placeNodes(list, x) {
+    const gap = Math.min(90, (H-80) / Math.max(list.length,1));
+    const totalH = (list.length-1)*gap;
+    const startY = cy - totalH/2;
+    list.forEach((d,i) => { nodePos[d.id] = {x, y: startY + i*gap}; });
+  }
+  placeNodes(mics, LX);
+  placeNodes(spks, RX);
+  nodePos['__router__'] = {x: cx, y: cy};
+
+  const streamToMicId = {};
+  mics.forEach(m => {
+    streams.forEach(s => {
+      if (!streamToMicId[s]) streamToMicId[s] = m.id;
+    });
+  });
+  if (mics.length === 1) {
+    streams.forEach(s => { streamToMicId[s] = mics[0].id; });
+  }
+
+  const drawnRoutes = new Set();
+  spks.forEach(spk => {
+    (spk.assigned_streams||[]).forEach(sname => {
+      const micId = streamToMicId[sname];
+      if (!micId || !nodePos[micId] || !nodePos[spk.id]) return;
+      const key = micId+'->'+spk.id+'::'+sname;
+      if (drawnRoutes.has(key)) return;
+      drawnRoutes.add(key);
+      const p1 = nodePos[micId], p2 = nodePos[spk.id];
+      const mx1 = p1.x + NODE_R + 10, mx2 = p2.x - NODE_R - 10;
+      const cmx = (mx1+mx2)/2;
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', `M${mx1},${p1.y} C${cmx},${p1.y} ${cmx},${p2.y} ${mx2},${p2.y}`);
+      path.setAttribute('fill','none');
+      path.setAttribute('stroke','rgba(59, 130, 246, 0.6)');
+      path.setAttribute('stroke-width','2');
+      path.setAttribute('marker-end','url(#arr)');
+      path.style.cursor = 'pointer';
+      path.addEventListener('click', () => disconnectRoute(micId, spk.id, sname));
+      const pLen = path.getTotalLength ? path.getTotalLength() : 200;
+      path.setAttribute('stroke-dasharray', pLen);
+      path.setAttribute('stroke-dashoffset', pLen);
+      path.style.animation = 'dashIn 0.5s ease forwards';
+      svg.appendChild(path);
+      
+      const lx = (mx1+mx2)/2, ly = (p1.y+p2.y)/2 - 10;
+      const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('x', lx); txt.setAttribute('y', ly);
+      txt.setAttribute('text-anchor','middle');
+      txt.setAttribute('font-family',"'Inter', sans-serif");
+      txt.setAttribute('font-size','10');
+      txt.setAttribute('font-weight','500');
+      txt.setAttribute('fill','rgba(255, 255, 255, 0.8)');
+      txt.textContent = sname;
+      svg.appendChild(txt);
+    });
+  });
+
+  const rn = document.createElementNS('http://www.w3.org/2000/svg','g');
+  rn.innerHTML = `
+    <rect x="${cx-24}" y="${cy-24}" width="48" height="48" rx="12" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+    <text x="${cx}" y="${cy+4}" text-anchor="middle" font-family="'Inter',sans-serif" font-weight="600" font-size="10" fill="rgba(255,255,255,0.6)">HUB</text>`;
+  svg.appendChild(rn);
+
+  if (pendingMic && nodePos[pendingMic]) {
+    const pp = nodePos[pendingMic];
+    const ring = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    ring.setAttribute('cx',pp.x); ring.setAttribute('cy',pp.y); ring.setAttribute('r', NODE_R+8);
+    ring.setAttribute('fill','none'); ring.setAttribute('stroke',"var(--accent-warning)"); ring.setAttribute('stroke-width','2');
+    ring.setAttribute('stroke-dasharray','4 4');
+    svg.appendChild(ring);
+  }
+
+  mics.forEach(dev => {
+    const p   = nodePos[dev.id];
+    const off = isOffline(dev);
+    const col = off ? '#6b7280' : (dev.id===pendingMic ? 'var(--accent-warning)' : 'var(--accent-purple)');
+    const g   = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.style.cursor = 'pointer';
+    g.innerHTML = `
+      <circle cx="${p.x}" cy="${p.y}" r="${NODE_R}" fill="rgba(255,255,255,0.02)" stroke="${col}" stroke-width="${dev.id===pendingMic?2.5:1.5}"/>
+      <text x="${p.x}" y="${p.y-4}" text-anchor="middle" font-family="'Inter',sans-serif" font-weight="600" font-size="10" fill="${col}">MIC</text>
+      <text x="${p.x}" y="${p.y+10}" text-anchor="middle" font-family="'Inter',sans-serif" font-weight="500" font-size="10" fill="${off?'#6b7280':'#d1d5db'}">${truncate(dev.name,12)}</text>`;
+    g.addEventListener('click', () => onMicClick(dev.id));
+    svg.appendChild(g);
+  });
+
+  spks.forEach(dev => {
+    const p   = nodePos[dev.id];
+    const off = isOffline(dev);
+    const col = off ? '#6b7280' : 'var(--accent-primary)';
+    const g   = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.style.cursor = 'pointer';
+    g.innerHTML = `
+      <rect x="${p.x-NODE_R}" y="${p.y-NODE_R}" width="${NODE_R*2}" height="${NODE_R*2}" rx="8" fill="rgba(255,255,255,0.02)" stroke="${col}" stroke-width="1.5" />
+      <text x="${p.x}" y="${p.y-4}" text-anchor="middle" font-family="'Inter',sans-serif" font-weight="600" font-size="10" fill="${col}">SPK</text>
+      <text x="${p.x}" y="${p.y+10}" text-anchor="middle" font-family="'Inter',sans-serif" font-weight="500" font-size="10" fill="${off?'#6b7280':'#d1d5db'}">${truncate(dev.name,12)}</text>`;
+    g.addEventListener('click', () => onSpkClick(dev.id));
+    svg.appendChild(g);
+  });
+}
+
+const styleEl = document.createElement('style');
+styleEl.textContent = `@keyframes dashIn { to { stroke-dashoffset: 0; } }`;
+document.head.appendChild(styleEl);
+
+function truncate(s,n) { return s.length>n ? s.slice(0,n-1)+'…' : s; }
+
+// ── diagram interactions ──────────────────────────────────────────────────────
+function onMicClick(id) {
+  if (isOffline(devices[id])) return;
+  pendingMic = id;
+  elDiagMode.style.display = 'block';
+  elDiagMode.textContent = 'Select Speaker Destination';
+  elDiagHint.textContent = 'Now click a SPEAKER node to route audio.';
+  selectDevice(id);
+  renderDiagram();
+}
+
+function onSpkClick(id) {
+  if (isOffline(devices[id])) return;
+  if (pendingMic) {
+    const toAssign = Array.from(streams);
+    if (toAssign.length === 0) { pendingMic=null; elDiagMode.textContent='IDLE'; return; }
+    const spk = devices[id];
+    const current = new Set(spk.assigned_streams||[]);
+    toAssign.forEach(s => current.add(s));
+    fetch('/device/'+id+'/streams', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ streams: Array.from(current) })
+    }).then(() => {
+      if (devices[id]) devices[id].assigned_streams = Array.from(current);
+      pendingMic = null;
+      elDiagMode.textContent = 'IDLE';
+      elDiagHint.textContent = 'Click a MIC, then click a SPEAKER to route.';
+      renderDiagram();
+      if (selectedId === id) renderDetail();
+    });
+  } else {
+    selectDevice(id);
+  }
+}
+
+function disconnectRoute(micId, spkId, streamName) {
+  const spk = devices[spkId];
+  if (!spk) return;
+  const newStreams = (spk.assigned_streams||[]).filter(s => s !== streamName);
+  fetch('/device/'+spkId+'/streams', {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ streams: newStreams })
+  }).then(() => {
+    if (devices[spkId]) devices[spkId].assigned_streams = newStreams;
+    renderDiagram();
+    if (selectedId===spkId) renderDetail();
+  });
+}
+
+// ── device detail ─────────────────────────────────────────────────────────────
+function selectDevice(id) {
+  selectedId = id;
+  renderDevices();
+  renderDetail();
+}
+
+function renderDetail() {
+  const dev = devices[selectedId];
+  if (!dev) { elDetail.innerHTML = '<div class="empty-hint">Select a device</div>'; return; }
+
+  const off = isOffline(dev);
+  const assignRows = Array.from(streams).map(s => {
+    const chk = (dev.assigned_streams||[]).includes(s) ? 'checked' : '';
+    return `<div class="assign-row">
+      <input type="checkbox" id="asgn_${s}" data-stream="${s}" ${chk}>
+      <label for="asgn_${s}">${s}</label>
+    </div>`;
+  }).join('');
+
+  elDetail.innerHTML = `
+    <div class="detail-section">
+      <div class="detail-label">Name</div>
+      <div class="detail-val">${dev.name} <span class="dc-role ${roleClass(dev.role)}">${dev.role}</span></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Status</div>
+      <div class="detail-val">
+        <span class="dc-dot ${dotClass(dev)}"></span>
+        <span>${off?'Offline':dev.status}</span>
+      </div>
+    </div>
+    <hr class="sep">
+    <div class="detail-section">
+      <div class="detail-label">Master Volume</div>
+      <div class="vol-row">
+        <input type="range" id="volSlider" min="0" max="2" step="0.05" value="${dev.volume}">
+        <span class="vol-val" id="volDisplay">${(dev.volume*100).toFixed(0)}%</span>
+      </div>
+    </div>
+    ${streams.size > 0 && dev.role !== 'controller' ? `
+    <hr class="sep">
+    <div class="detail-section">
+      <div class="detail-label">Route Streams</div>
+      <div style="display:flex;flex-direction:column;gap:8px;" id="assignBlock">
+        ${assignRows || '<div class="empty-hint">No streams available</div>'}
+      </div>
+    </div>` : ''}
+    <div style="flex:1;"></div>
+    <button class="btn-remove" id="btnRemoveDev">Remove Device</button>`;
+
+  let volT = null;
+  const sl = document.getElementById('volSlider');
+  const vd = document.getElementById('volDisplay');
+  sl.addEventListener('input', () => {
+    const v = parseFloat(sl.value);
+    vd.textContent = (v*100).toFixed(0)+'%';
+    if (devices[selectedId]) devices[selectedId].volume = v;
+    clearTimeout(volT);
+    volT = setTimeout(() => {
+      fetch('/device/'+selectedId+'/volume', {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({volume:v})
+      });
+    }, 150);
+  });
+
+  const assignBlock = document.getElementById('assignBlock');
+  if (assignBlock) {
+    assignBlock.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const assigned = Array.from(assignBlock.querySelectorAll('input:checked')).map(c=>c.dataset.stream);
+        fetch('/device/'+selectedId+'/streams', {
+          method:'PATCH', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({streams:assigned})
+        });
+        if (devices[selectedId]) devices[selectedId].assigned_streams = assigned;
+        renderDiagram();
+      });
+    });
+  }
+
+  document.getElementById('btnRemoveDev').addEventListener('click', () => {
+    fetch('/device/'+selectedId, {method:'DELETE'}).then(() => {
+      delete devices[selectedId]; selectedId=null;
+      renderDevices(); renderDiagram(); renderDetail();
+    });
+  });
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function setWs(state) {
+  const m = {ok:['ws-badge ws-ok','Connected'],err:['ws-badge ws-err','Offline'],wait:['ws-badge ws-wait','Connecting...']};
+  const [cls,txt] = m[state]||m.wait;
+  elWsBadge.className=cls; elWsBadge.textContent=txt;
+}
+
+function connectWS() {
+  setWs('wait');
+  const proto = location.protocol==='https:'?'wss':'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen  = () => { setWs('ok'); };
+  ws.onclose = () => { setWs('err'); setTimeout(connectWS,3000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = (e) => {
+    let msg; try { msg=JSON.parse(e.data); } catch { return; }
+    applyEvent(msg);
+  };
+}
+
+function applyEvent(msg) {
+  switch(msg.type) {
+    case 'snapshot':
+      devices={}; (msg.devices||[]).forEach(d=>{devices[d.id]=d;});
+      streams=new Set(msg.streams||[]); break;
+    case 'device_joined': if(msg.device) devices[msg.device.id]=msg.device; break;
+    case 'device_left':   delete devices[msg.id]; if(selectedId===msg.id) selectedId=null; break;
+    case 'stream_added':  streams.add(msg.name);    break;
+    case 'stream_removed':streams.delete(msg.name); break;
+    case 'volume_changed': if(devices[msg.device_id]) devices[msg.device_id].volume=msg.volume; break;
+    case 'route_changed':
+      if (devices[msg.speaker_id]) {
+        const d=devices[msg.speaker_id];
+        if (msg.connected) { if(!d.assigned_streams.includes(msg.source)) d.assigned_streams.push(msg.source); }
+        else d.assigned_streams=d.assigned_streams.filter(s=>s!==msg.source);
+      } break;
+  }
+  renderDevices();
+  renderDiagram();
+  if (selectedId && devices[selectedId]) renderDetail();
+  else if (selectedId && !devices[selectedId]) { selectedId=null; elDetail.innerHTML='<div class="empty-hint">Select a device</div>'; }
+}
+
+setInterval(()=>{ renderDevices(); renderDiagram(); if(selectedId&&devices[selectedId]) renderDetail(); }, 5000);
+window.addEventListener('resize', ()=>{ setTimeout(renderDiagram,50); });
+
+connectWS();
+</script>
+</body>
+</html>

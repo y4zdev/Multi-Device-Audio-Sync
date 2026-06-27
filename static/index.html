@@ -3,121 +3,305 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Y4Z // SPEAKER</title>
+  <title>AirLink // RECEIVER</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #050608;
-      --bg-panel: rgba(10,12,16,0.92);
-      --neon-cyan: #00f0ff;
-      --neon-magenta: #ff003c;
-      --neon-yellow: #fcee0a;
-      --neon-green: #00ff41;
-      --neon-orange: #ff8800;
-      --text-main: #d1d5db;
-      --text-muted: #6b7280;
-      --grid-line: rgba(0,240,255,0.06);
-      --font-ui: 'Rajdhani', sans-serif;
-      --font-mono: 'Share Tech Mono', monospace;
-      --clip-a: polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);
-      --clip-b: polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
+      --bg: #09090b;
+      --bg-panel: rgba(24, 24, 27, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-primary: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-danger: #ef4444;
+      --accent-success: #22c55e;
+      --font-ui: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
     }
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#050608;color:var(--text-main);font-family:var(--font-ui);min-height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
-    body::after{content:" ";display:block;position:fixed;inset:0;background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.22) 50%),linear-gradient(90deg,rgba(255,0,0,0.04),rgba(0,255,0,0.02),rgba(0,0,255,0.04));background-size:100% 2px,3px 100%;pointer-events:none;z-index:999;}
-    .grid-bg{position:fixed;inset:0;z-index:-1;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:30px 30px;}
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .bg-static {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.04), transparent 50%),
+                  radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.03), transparent 50%);
+    }
 
-    .hud{display:flex;flex-direction:column;height:100dvh;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:8px;}
+    .hud {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+      gap: 24px;
+      position: relative;
+      z-index: 10;
+    }
 
     /* header */
-    .header-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:var(--bg-panel);border:1px solid var(--neon-cyan);border-left:4px solid var(--neon-cyan);clip-path:var(--clip-a);box-shadow:0 0 12px rgba(0,240,255,0.15);}
-    .brand h1{font-size:1.4rem;letter-spacing:3px;color:var(--neon-cyan);text-transform:uppercase;line-height:1;}
-    .brand span{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);}
-    .header-right{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:0.8rem;}
-    .role-badge{padding:3px 10px;border:1px solid var(--neon-cyan);color:var(--neon-cyan);font-size:0.7rem;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .nav-link{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);text-decoration:none;padding:3px 8px;border:1px solid rgba(0,240,255,0.2);}
-    .nav-link:hover{color:var(--neon-cyan);border-color:var(--neon-cyan);}
-    .sys-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);}
-    .sys-dot.live{background:var(--neon-green);box-shadow:0 0 8px var(--neon-green);}
-    .sys-dot.warn{background:var(--neon-yellow);box-shadow:0 0 8px var(--neon-yellow);animation:blink 1s infinite;}
-    .sys-dot.err{background:var(--neon-magenta);box-shadow:0 0 8px var(--neon-magenta);}
-    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    }
+
+    .brand { display: flex; align-items: baseline; gap: 8px; }
+    .brand h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+    .brand span {
+      font-size: 0.8rem;
+      color: var(--accent-primary);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-link:hover { color: var(--text-main); }
+    
+    .role-badge {
+      padding: 4px 10px;
+      border: 1px solid var(--accent-primary);
+      color: var(--accent-primary);
+      font-size: 0.75rem;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .sys-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.03);
+      padding: 6px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+    }
+    .sys-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); transition: 0.3s; }
+    .sys-dot.live { background: var(--accent-success); box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
+    .sys-dot.warn { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.4); }
+    .sys-dot.err { background: var(--accent-danger); box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
 
     /* layout */
-    .core{display:flex;flex:1;gap:8px;min-height:0;}
+    .core { display: flex; flex: 1; gap: 24px; min-height: 0; }
 
     /* visualizer */
-    .viz-wrap{flex:1;position:relative;background:radial-gradient(circle at center,rgba(0,240,255,0.04) 0%,transparent 60%),#000;border:1px solid rgba(0,240,255,0.2);clip-path:var(--clip-b);overflow:hidden;}
-    canvas{width:100%;height:100%;display:block;}
-    .viz-label{position:absolute;bottom:10px;left:14px;font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);opacity:0.6;}
+    .viz-wrap {
+      flex: 1;
+      position: relative;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas { width: 100%; height: 100%; display: block; position: absolute; inset: 0; opacity: 0.8; }
+    
+    .viz-label {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: rgba(0,0,0,0.5);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
 
     /* side panels */
-    .side{width:330px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
-    .panel{background:var(--bg-panel);border:1px solid rgba(0,240,255,0.18);padding:14px;clip-path:var(--clip-a);}
-    .panel-hdr{font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-cyan);text-transform:uppercase;border-bottom:1px dashed rgba(0,240,255,0.25);padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;}
+    .side {
+      width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .side::-webkit-scrollbar { width: 4px; }
+    .side::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    .panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    
+    .panel-hdr {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
 
     /* forms */
-    .field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
-    .field label{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;}
-    .field input{background:rgba(0,0,0,0.5);border:1px solid rgba(0,240,255,0.3);color:var(--text-main);padding:6px 8px;font-family:var(--font-mono);font-size:0.8rem;width:100%;outline:none;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .field input:focus{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(0,240,255,0.2);}
+    .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .field label { font-size: 0.75rem; font-weight: 500; color: var(--text-muted); }
+    .field input {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: var(--font-ui);
+      font-size: 0.9rem;
+      width: 100%;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .field input:focus { border-color: var(--accent-primary); background: rgba(0, 0, 0, 0.5); }
 
     /* buttons */
-    .btn-row{display:flex;flex-wrap:wrap;gap:6px;}
-    button{flex:1;min-width:70px;background:transparent;color:var(--text-main);border:1px solid rgba(0,240,255,0.35);padding:7px 10px;font-family:var(--font-mono);font-size:0.78rem;text-transform:uppercase;cursor:pointer;transition:all 0.18s ease;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);}
-    button:hover{background:rgba(0,240,255,0.1);border-color:var(--neon-cyan);}
-    button:active{transform:scale(0.97);}
-    button.primary{border-color:var(--neon-cyan);color:var(--neon-cyan);background:rgba(0,240,255,0.04);}
-    button.primary:hover{background:var(--neon-cyan);color:#000;}
-    button.danger{border-color:var(--neon-magenta);color:var(--neon-magenta);}
-    button.danger:hover{background:var(--neon-magenta);color:#000;}
-    button:disabled{opacity:0.35;cursor:not-allowed;}
+    .btn-row { display: flex; gap: 12px; margin-bottom: 16px; }
+    button {
+      flex: 1;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    button:active { transform: scale(0.98); }
+    button.primary { background: var(--accent-primary); color: #fff; }
+    button.primary:hover { background: var(--accent-hover); }
+    button.danger { background: rgba(239, 68, 68, 0.1); color: var(--accent-danger); border: 1px solid rgba(239, 68, 68, 0.2); }
+    button.danger:hover { background: rgba(239, 68, 68, 0.2); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* data grid */
-    .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-    .dk{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;}
-    .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 8px; }
+    .dk { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+    .dv { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* stream list */
-    .stream-list{display:flex;flex-direction:column;gap:6px;}
-    .stream-item{border:1px solid rgba(0,240,255,0.15);padding:8px 10px;display:flex;align-items:center;gap:8px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .stream-item input[type=checkbox]{accent-color:var(--neon-cyan);width:15px;height:15px;cursor:pointer;}
-    .stream-item .sname{flex:1;font-family:var(--font-mono);font-size:0.8rem;color:var(--text-main);}
-    .gain-wrap{display:flex;align-items:center;gap:6px;}
-    .gain-wrap input[type=range]{width:70px;accent-color:var(--neon-cyan);cursor:pointer;}
-    .gain-val{color:var(--neon-cyan);font-family:var(--font-mono);font-size:0.72rem;min-width:38px;text-align:right;}
+    .stream-list { display: flex; flex-direction: column; gap: 10px; }
+    .stream-item {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .stream-item input[type=checkbox] { accent-color: var(--accent-primary); width: 16px; height: 16px; cursor: pointer; }
+    .stream-item .sname { flex: 1; font-weight: 500; font-size: 0.9rem; color: var(--text-main); }
+    .gain-wrap { display: flex; align-items: center; gap: 8px; }
+    .gain-wrap input[type=range] { width: 80px; accent-color: var(--accent-primary); cursor: pointer; }
+    .gain-val { color: var(--text-muted); font-family: var(--font-mono); font-size: 0.75rem; min-width: 40px; text-align: right; }
 
     /* assigned streams display */
-    .assigned-list{display:flex;flex-wrap:wrap;gap:4px;}
-    .stream-chip{font-family:var(--font-mono);font-size:0.65rem;padding:2px 7px;background:rgba(0,240,255,0.07);border:1px solid rgba(0,240,255,0.25);color:var(--neon-cyan);clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px);}
+    .assigned-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .stream-chip {
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: var(--accent-primary);
+      border-radius: 6px;
+    }
 
     /* terminal log */
-    .terminal{font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-green);background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.15);padding:8px;height:110px;overflow-y:auto;clip-path:var(--clip-b);}
-    .lg{margin-bottom:3px;word-break:break-all;}
-    .lt{color:var(--text-muted);margin-right:4px;}
-    .le{color:var(--neon-magenta);}
-    .lw{color:var(--neon-yellow);}
-    .empty-hint{font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);text-align:center;padding:12px;}
+    .terminal {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      height: 120px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .terminal::-webkit-scrollbar { width: 4px; }
+    .terminal::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    .lg { line-height: 1.4; word-break: break-all; }
+    .lt { color: rgba(255,255,255,0.2); margin-right: 8px; }
+    .le { color: var(--accent-danger); }
+    .lw { color: #f59e0b; }
+    .empty-hint { font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 12px; }
 
-    @media(max-width:800px){.core{flex-direction:column;}.side{width:100%;flex:0 0 auto;}.viz-wrap{min-height:30vh;}}
+    @media (max-width: 900px) {
+      .core { flex-direction: column; }
+      .side { width: 100%; flex: 0 0 auto; }
+      .viz-wrap { min-height: 35vh; }
+    }
   </style>
 </head>
 <body>
-<div class="grid-bg"></div>
+<div class="bg-static"></div>
 <div class="hud">
   <header class="header-bar">
     <div class="brand">
-      <h1>Audio_Sync_LINK</h1>
-      <span>// SPEAKER — Y4Z.DEV</span>
+      <h1>AirLink</h1>
+      <span>Receiver</span>
     </div>
     <div class="header-right">
-      <a class="nav-link" href="/sender">&#x25B6; Sender</a>
-      <a class="nav-link" href="/manager">&#x25B6; Manager</a>
-      <span class="role-badge">SPEAKER / OUTPUT</span>
-      <span class="sys-dot" id="sysDot"></span>
-      <span id="sysText" style="font-family:var(--font-mono);font-size:0.8rem;">IDLE</span>
+      <a class="nav-link" href="/sender">Sender</a>
+      <a class="nav-link" href="/receiver">Receiver</a>
+      <a class="nav-link" href="/controller">Controller</a>
+      <a class="nav-link" href="/admin">Admin</a>
+      <div class="user-profile" style="width: 32px; height: 32px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid var(--border-color);" title="User Profile" onclick="window.location.href='/logout'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      </div>
     </div>
   </header>
 
@@ -125,7 +309,7 @@
     <!-- visualizer -->
     <section class="viz-wrap">
       <canvas id="viz"></canvas>
-      <div class="viz-label">&#x25BA; <span id="vizLabel">RX_STANDBY</span></div>
+      <div class="viz-label"><span id="vizLabel">STANDBY</span></div>
     </section>
 
     <!-- side -->
@@ -133,45 +317,51 @@
 
       <!-- [01] Device Identity -->
       <div class="panel">
-        <div class="panel-hdr"><span>[01] Device Identity</span><span id="devRegState" style="color:var(--text-muted);">UNREGISTERED</span></div>
+        <div class="panel-hdr"><span>01 / Configuration</span><span id="devRegState" style="color:var(--text-muted);font-size:0.7rem;">Unregistered</span></div>
         <div class="field">
           <label>Speaker Name</label>
           <input type="text" id="speakerName" placeholder="e.g. Living Room, Headset" maxlength="40" value="Speaker" />
         </div>
         <div class="data-grid" style="margin-bottom:8px;">
-          <div><div class="dk">DEVICE ID</div><div class="dv" id="devIdDisplay" style="font-size:0.65rem;">—</div></div>
-          <div><div class="dk">STATUS</div><div class="dv" id="devStatusDisplay">OFFLINE</div></div>
+          <div><div class="dk">Node ID</div><div class="dv" id="devIdDisplay" style="font-size:0.7rem;">—</div></div>
+          <div><div class="dk">Status</div><div class="dv" id="devStatusDisplay">Offline</div></div>
         </div>
       </div>
 
       <!-- [02] Available Streams -->
       <div class="panel">
-        <div class="panel-hdr"><span>[02] Available Streams</span><span id="streamCount" style="color:var(--neon-yellow);">0</span></div>
+        <div class="panel-hdr"><span>02 / Available Streams</span><span id="streamCount" style="color:var(--accent-primary);">0</span></div>
         <div id="streamList" class="stream-list">
-          <div class="empty-hint">waiting for streams&#x2026;</div>
+          <div class="empty-hint">Waiting for streams...</div>
         </div>
       </div>
 
       <!-- [03] Assigned by Manager -->
       <div class="panel">
-        <div class="panel-hdr"><span>[03] Manager Assigned</span></div>
+        <div class="panel-hdr"><span>03 / Manager Assigned</span></div>
         <div id="assignedStreams" class="assigned-list">
-          <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);">none</span>
+          <span style="font-size:0.8rem;color:var(--text-muted);">None</span>
         </div>
       </div>
 
       <!-- [04] Connect -->
       <div class="panel">
-        <div class="panel-hdr"><span>[04] Connection</span></div>
-        <div class="btn-row" style="margin-bottom:8px;">
-          <button class="primary" id="btnConnect">&#x25B6; Connect</button>
-          <button class="danger" id="btnDisconnect" disabled>&#x25A0; Disconnect</button>
+        <div class="panel-hdr">
+          <span>04 / Connection</span>
+          <div class="sys-indicator">
+            <span class="sys-dot" id="sysDot"></span>
+            <span id="sysText">IDLE</span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="primary" id="btnConnect">Connect</button>
+          <button class="danger" id="btnDisconnect" disabled>Disconnect</button>
         </div>
         <div class="data-grid">
           <div><div class="dk">ICE</div><div class="dv" id="iceState">—</div></div>
-          <div><div class="dk">AUDIO CTX</div><div class="dv" id="audioState">—</div></div>
-          <div><div class="dk">WS</div><div class="dv" id="wsState">DISCONNECTED</div></div>
-          <div><div class="dk">HEARTBEAT</div><div class="dv" id="hbState">—</div></div>
+          <div><div class="dk">Audio Engine</div><div class="dv" id="audioState">—</div></div>
+          <div><div class="dk">Connection</div><div class="dv" id="wsState">Disconnected</div></div>
+          <div><div class="dk">Heartbeat</div><div class="dv" id="hbState">—</div></div>
         </div>
       </div>
 
@@ -186,7 +376,7 @@
 let deviceId       = null;
 let ws             = null;
 let audioCtx       = null;
-let gainNodes      = {};   // streamName → GainNode
+let gainNodes      = {};   
 let pc             = null;
 let hbTimer        = null;
 let knownStreams    = new Set();
@@ -241,22 +431,21 @@ function vizLoop() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.clearRect(0,0,w,h);
   if (analyserNodes.length === 0) {
-    ctx.fillStyle = 'rgba(0,240,255,0.15)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.fillRect(0, h/2-1, w, 2);
   } else {
     analyserNodes.forEach(an => {
       const data = new Uint8Array(an.frequencyBinCount);
       an.getByteFrequencyData(data);
-      const bars=60, step=Math.floor(data.length/bars), bw=w/bars, cy=h/2;
+      const bars=80, step=Math.floor(data.length/bars), bw=w/bars, cy=h/2;
       for (let i=0; i<bars; i++) {
         let s=0; for(let j=0;j<step;j++) s+=data[i*step+j]||0;
         const norm = Math.pow(s/step/255, 1.5);
-        const bh = Math.max(2, norm*(h*0.4));
-        ctx.fillStyle='#00f0ff'; ctx.shadowBlur=8*norm; ctx.shadowColor='#00f0ff';
+        const bh = Math.max(2, norm*(h*0.45));
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.8)';
         ctx.fillRect(i*bw+1, cy-bh, bw-2, bh);
         ctx.fillRect(i*bw+1, cy,    bw-2, bh);
       }
-      ctx.shadowBlur=0;
     });
   }
   requestAnimationFrame(vizLoop);
@@ -266,7 +455,7 @@ function vizLoop() {
 function renderStreamList() {
   elStreamCnt.textContent = knownStreams.size;
   if (knownStreams.size === 0) {
-    elStreamList.innerHTML = '<div class="empty-hint">no active streams</div>';
+    elStreamList.innerHTML = '<div class="empty-hint">No active streams</div>';
     return;
   }
   elStreamList.innerHTML = '';
@@ -284,12 +473,10 @@ function renderStreamList() {
         <span class="gain-val" id="gv_${name}">1.00x</span>
       </div>`;
     elStreamList.appendChild(div);
-    // checkbox → track checked set
     div.querySelector('input[type=checkbox]').addEventListener('change', e => {
       if (e.target.checked) checkedStreams.add(name);
       else checkedStreams.delete(name);
     });
-    // gain slider
     div.querySelector('input[type=range]').addEventListener('input', e => {
       const v = parseFloat(e.target.value);
       document.getElementById('gv_'+name).textContent = v.toFixed(2)+'x';
@@ -301,11 +488,11 @@ function renderStreamList() {
 // ── render assigned streams ───────────────────────────────────────────────────
 function renderAssigned() {
   if (assignedStreams.length === 0) {
-    elAssigned.innerHTML = '<span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);">none</span>';
+    elAssigned.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted);">None</span>';
     return;
   }
   elAssigned.innerHTML = assignedStreams.map(s =>
-    `<span class="stream-chip">&#x25BA; ${s}</span>`).join('');
+    `<span class="stream-chip">${s}</span>`).join('');
 }
 
 // ── device registration ───────────────────────────────────────────────────────
@@ -317,13 +504,14 @@ async function registerDevice() {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ id, name, role: 'speaker' })
   });
-  if (!res.ok) throw new Error('register failed ' + res.status);
+  if (!res.ok) throw new Error('Register failed ' + res.status);
   const d = await res.json();
   deviceId = d.id;
   elDevId.textContent     = deviceId.slice(0,14) + '...';
-  elDevStatus.textContent = 'ONLINE';
-  elDevReg.textContent    = 'REGISTERED';
-  elDevReg.style.color    = 'var(--neon-green)';
+  elDevStatus.textContent = 'Online';
+  elDevStatus.style.color = 'var(--accent-success)';
+  elDevReg.textContent    = 'Registered';
+  elDevReg.style.color    = 'var(--accent-success)';
   log('Device registered: ' + name + ' [' + deviceId.slice(0,8) + ']');
 }
 
@@ -343,14 +531,13 @@ function stopHb() { if (hbTimer) { clearInterval(hbTimer); hbTimer = null; } }
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen  = () => { elWs.textContent = 'CONNECTED'; log('WS connected'); if(deviceId) startHb(); };
-  ws.onclose = () => { elWs.textContent = 'DISCONNECTED'; setTimeout(connectWS, 3000); };
+  ws.onopen  = () => { elWs.textContent = 'Connected'; elWs.style.color='var(--accent-success)'; log('Server connection established'); if(deviceId) startHb(); };
+  ws.onclose = () => { elWs.textContent = 'Disconnected'; elWs.style.color='var(--text-muted)'; setTimeout(connectWS, 3000); };
   ws.onerror = () => ws.close();
   ws.onmessage = (e) => {
     let msg; try { msg = JSON.parse(e.data); } catch { return; }
     if (msg.type === 'snapshot') {
       knownStreams = new Set(msg.streams || []);
-      // find our device in snapshot to get assigned streams
       if (deviceId) {
         const me = (msg.devices || []).find(d => d.id === deviceId);
         if (me) { assignedStreams = me.assigned_streams || []; renderAssigned(); }
@@ -359,19 +546,17 @@ function connectWS() {
     }
     if (msg.type === 'stream_added')   { knownStreams.add(msg.name);    renderStreamList(); return; }
     if (msg.type === 'stream_removed') { knownStreams.delete(msg.name); renderStreamList(); return; }
-    // manager assigned streams to this speaker
     if (msg.type === 'route_changed' && msg.speaker_id === deviceId) {
       if (msg.connected)  assignedStreams = [...new Set([...assignedStreams, msg.source])];
       else                assignedStreams = assignedStreams.filter(s => s !== msg.source);
       renderAssigned();
       log('Manager ' + (msg.connected?'assigned':'removed') + ': ' + msg.source, 'warn');
     }
-    // manager volume command
     if (msg.type === 'set_volume' && msg.device_id === deviceId) {
       const vol = parseFloat(msg.volume);
       if (msg.stream) { if (gainNodes[msg.stream]) gainNodes[msg.stream].gain.value = vol; }
       else { Object.values(gainNodes).forEach(g => g.gain.value = vol); }
-      log('Manager set volume: ' + Math.round(vol*100) + '%', 'warn');
+      log('Remote Override: Volume set to ' + Math.round(vol*100) + '%', 'warn');
     }
   };
 }
@@ -386,7 +571,6 @@ function getSelectedStreams() {
 }
 
 async function connect() {
-  // get streams — prefer manager-assigned, fallback to checked
   let streams = assignedStreams.length > 0 ? [...assignedStreams] : getSelectedStreams();
   if (streams.length === 0) streams = getSelectedStreams();
   if (streams.length === 0) { log('Select or wait for manager to assign streams.', 'warn'); return; }
@@ -397,7 +581,6 @@ async function connect() {
   try { await registerDevice(); }
   catch(e) { log('Register failed: '+e.message,'err'); btnConnect.disabled=false; setSys('ERROR','err'); return; }
 
-  // AudioContext — must resume inside click handler (user gesture)
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   elAudio.textContent = audioCtx.state.toUpperCase();
@@ -421,12 +604,11 @@ async function connect() {
     gain.connect(audioCtx.destination);
     gainNodes[streamName] = gain;
     analyserNodes.push(an);
-    document.getElementById('vizLabel').textContent = 'RX // ' + streamName;
+    document.getElementById('vizLabel').textContent = 'LIVE: ' + streamName;
     setSys('PLAYING', 'live');
     if (audioCtx.state === 'suspended') audioCtx.resume();
     elAudio.textContent = 'RUNNING';
 
-    // sync gain slider if present
     const sl = document.querySelector(`[data-gain="${streamName}"]`);
     if (sl) sl.addEventListener('input', () => { gain.gain.value = parseFloat(sl.value); });
   };
@@ -457,7 +639,7 @@ async function connect() {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ streams, sdp: pc.localDescription })
     });
-    if (!res.ok) throw new Error('offer HTTP '+res.status);
+    if (!res.ok) throw new Error('Offer HTTP '+res.status);
     answer = await res.json();
   } catch(e) { log('Offer failed: '+e.message,'err'); btnConnect.disabled=false; setSys('ERROR','err'); return; }
 
@@ -468,7 +650,7 @@ async function connect() {
   isConnected = true;
   btnConnect.disabled  = false;
   btnDiscon.disabled   = false;
-  log('Connected ✓ streams: ' + streams.join(', '));
+  log('Connected successfully.');
 }
 
 async function disconnect() {
@@ -479,15 +661,16 @@ async function disconnect() {
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
   elAudio.textContent = '—';
   elIce.textContent   = '—';
-  document.getElementById('vizLabel').textContent = 'RX_STANDBY';
+  document.getElementById('vizLabel').textContent = 'STANDBY';
   setSys('IDLE','idle');
   if (deviceId) {
     await fetch('/device/'+deviceId, {method:'DELETE'}).catch(()=>{});
     deviceId = null;
   }
   elDevId.textContent     = '—';
-  elDevStatus.textContent = 'OFFLINE';
-  elDevReg.textContent    = 'UNREGISTERED';
+  elDevStatus.textContent = 'Offline';
+  elDevStatus.style.color = 'var(--text-main)';
+  elDevReg.textContent    = 'Unregistered';
   elDevReg.style.color    = 'var(--text-muted)';
   btnConnect.disabled  = false;
   btnDiscon.disabled   = true;
@@ -500,7 +683,7 @@ btnDiscon.addEventListener ('click', disconnect);
 resizeCanvas();
 requestAnimationFrame(vizLoop);
 connectWS();
-log('SPEAKER READY. Enter name and click Connect.');
+log('System ready.');
 </script>
 </body>
 </html>

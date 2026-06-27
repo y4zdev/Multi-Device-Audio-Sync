@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AirLink // LOGIN</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    body { background: #09090b; color: #f8fafc; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .panel { background: rgba(24, 24, 27, 0.7); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 32px; width: 100%; max-width: 360px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); }
+    h1 { font-size: 1.5rem; margin-bottom: 24px; text-align: center; }
+    .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    label { font-size: 0.85rem; color: #94a3b8; }
+    input { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 12px; border-radius: 8px; outline: none; transition: 0.2s; }
+    input:focus { border-color: #3b82f6; }
+    button { width: 100%; background: #3b82f6; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    button:hover { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>AirLink Login</h1>
+    <form method="POST" action="/login">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" name="username" required autofocus />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" name="password" required />
+      </div>
+      <button type="submit">Sign In</button>
+    </form>
+  </div>
+</body>
+</html>

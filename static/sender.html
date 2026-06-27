@@ -3,454 +3,621 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Y4Z // SENDER</title>
+  <title>AirLink // SENDER</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #050608;
-      --bg-panel: rgba(10,12,16,0.92);
-      --neon-cyan: #00f0ff;
-      --neon-magenta: #ff003c;
-      --neon-yellow: #fcee0a;
-      --neon-green: #00ff41;
-      --neon-orange: #ff8800;
-      --text-main: #d1d5db;
-      --text-muted: #6b7280;
-      --grid-line: rgba(0,240,255,0.06);
-      --font-ui: 'Rajdhani', sans-serif;
-      --font-mono: 'Share Tech Mono', monospace;
-      --clip-a: polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);
-      --clip-b: polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
+      --bg: #09090b;
+      --bg-panel: rgba(24, 24, 27, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-primary: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-danger: #ef4444;
+      --accent-success: #22c55e;
+      --font-ui: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
     }
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#050608;color:var(--text-main);font-family:var(--font-ui);min-height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
-    body::after{content:" ";display:block;position:fixed;inset:0;background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.22) 50%),linear-gradient(90deg,rgba(255,0,0,0.05),rgba(0,255,0,0.02),rgba(0,0,255,0.05));background-size:100% 2px,3px 100%;pointer-events:none;z-index:999;}
-    .grid-bg{position:fixed;inset:0;z-index:-1;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:30px 30px;}
-    .hud{display:flex;flex-direction:column;height:100dvh;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:8px;}
-    .header-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:var(--bg-panel);border:1px solid var(--neon-orange);border-left:4px solid var(--neon-orange);clip-path:var(--clip-a);box-shadow:0 0 12px rgba(255,136,0,0.15);}
-    .brand h1{font-size:1.4rem;letter-spacing:3px;color:var(--neon-orange);text-transform:uppercase;line-height:1;}
-    .brand span{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);}
-    .header-right{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:0.8rem;}
-    .role-badge{padding:3px 10px;border:1px solid var(--neon-orange);color:var(--neon-orange);font-size:0.7rem;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .nav-link{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);text-decoration:none;padding:3px 8px;border:1px solid rgba(0,240,255,0.2);}
-    .nav-link:hover{color:var(--neon-cyan);border-color:var(--neon-cyan);}
-    .sys-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);}
-    .sys-dot.live{background:var(--neon-green);box-shadow:0 0 8px var(--neon-green);}
-    .sys-dot.warn{background:var(--neon-yellow);box-shadow:0 0 8px var(--neon-yellow);animation:blink 1s infinite;}
-    .sys-dot.err{background:var(--neon-magenta);box-shadow:0 0 8px var(--neon-magenta);}
-    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
-    .core{display:flex;flex:1;gap:8px;min-height:0;}
-    .viz-wrap{flex:1;position:relative;background:radial-gradient(circle at center,rgba(255,136,0,0.04) 0%,transparent 60%),#000;border:1px solid rgba(255,136,0,0.2);clip-path:var(--clip-b);overflow:hidden;}
-    canvas{width:100%;height:100%;display:block;}
-    .viz-label{position:absolute;bottom:10px;left:14px;font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-orange);opacity:0.6;}
-    .side{width:330px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
-    .panel{background:var(--bg-panel);border:1px solid rgba(255,136,0,0.18);padding:14px;clip-path:var(--clip-a);}
-    .panel-hdr{font-family:var(--font-mono);font-size:0.72rem;color:var(--neon-orange);text-transform:uppercase;border-bottom:1px dashed rgba(255,136,0,0.25);padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;}
-    .btn-row{display:flex;flex-wrap:wrap;gap:6px;}
-    button{flex:1;min-width:70px;background:transparent;color:var(--text-main);border:1px solid rgba(255,136,0,0.35);padding:7px 10px;font-family:var(--font-mono);font-size:0.78rem;text-transform:uppercase;cursor:pointer;transition:all 0.18s ease;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);}
-    button:hover{background:rgba(255,136,0,0.1);border-color:var(--neon-orange);}
-    button:active{transform:scale(0.97);}
-    button.primary{border-color:var(--neon-orange);color:var(--neon-orange);background:rgba(255,136,0,0.04);}
-    button.primary:hover{background:var(--neon-orange);color:#000;}
-    button.danger{border-color:var(--neon-magenta);color:var(--neon-magenta);}
-    button.danger:hover{background:var(--neon-magenta);color:#000;}
-    button:disabled{opacity:0.35;cursor:not-allowed;}
-    .stream-list{display:flex;flex-direction:column;gap:6px;}
-    .sender-card{border:1px solid rgba(255,136,0,0.3);padding:8px 10px;display:flex;flex-direction:column;gap:4px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .sender-card-row{display:flex;align-items:center;gap:8px;}
-    .vu-bar{flex:1;height:6px;background:rgba(255,136,0,0.1);overflow:hidden;}
-    .vu-fill{height:100%;width:0%;background:var(--neon-orange);box-shadow:0 0 8px var(--neon-orange);transition:width 0.08s linear;}
-    .field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
-    .field label{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;}
-    .field input,.field select{background:rgba(0,0,0,0.5);border:1px solid rgba(255,136,0,0.3);color:var(--text-main);padding:6px 8px;font-family:var(--font-mono);font-size:0.8rem;width:100%;outline:none;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
-    .field input:focus,.field select:focus{border-color:var(--neon-orange);}
-    .field select option{background:#0a0c10;}
-    .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-    .dk{font-family:var(--font-mono);font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;}
-    .dv{font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .id-badge{font-family:var(--font-mono);font-size:0.6rem;color:var(--text-muted);padding:2px 6px;border:1px solid rgba(255,136,0,0.15);word-break:break-all;}
-    .terminal{font-family:var(--font-mono);font-size:0.68rem;color:var(--neon-green);background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.15);padding:8px;height:110px;overflow-y:auto;clip-path:var(--clip-b);}
-    .lg{margin-bottom:3px;word-break:break-all;}
-    .lt{color:var(--text-muted);margin-right:4px;}
-    .le{color:var(--neon-magenta);}
-    .lw{color:var(--neon-yellow);}
-    @media(max-width:800px){.core{flex-direction:column;}.side{width:100%;flex:0 0 auto;}.viz-wrap{min-height:30vh;}}
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .bg-static {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.04), transparent 50%),
+                  radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.03), transparent 50%);
+    }
+
+    .hud {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+      gap: 24px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    }
+
+    .brand { display: flex; align-items: baseline; gap: 8px; }
+    .brand h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; color: #fff; }
+    .brand span { font-size: 0.8rem; color: var(--accent-primary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .header-right { display: flex; align-items: center; gap: 24px; font-size: 0.85rem; font-weight: 500; }
+    .nav-link { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .nav-link:hover { color: var(--text-main); }
+
+    .sys-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.03);
+      padding: 6px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+    }
+    .sys-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); transition: 0.3s; }
+    .sys-dot.live { background: var(--accent-success); box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
+    .sys-dot.warn { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.4); }
+    .sys-dot.err { background: var(--accent-danger); box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+
+    .core { display: flex; flex: 1; gap: 24px; min-height: 0; }
+
+    .viz-wrap {
+      flex: 1;
+      position: relative;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas { width: 100%; height: 100%; display: block; position: absolute; inset: 0; opacity: 0.8; }
+    
+    .viz-label {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: rgba(0,0,0,0.5);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .side {
+      width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .side::-webkit-scrollbar { width: 4px; }
+    .side::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    .panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    
+    .panel-hdr {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .field label { font-size: 0.75rem; font-weight: 500; color: var(--text-muted); }
+    .field input, .field select {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: var(--font-ui);
+      font-size: 0.9rem;
+      width: 100%;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--accent-primary); background: rgba(0, 0, 0, 0.5); }
+    .field select option { background: #18181b; }
+
+    .btn-row { display: flex; gap: 12px; margin-top: 8px; }
+    button {
+      flex: 1; border: none; border-radius: 8px; padding: 14px 20px;
+      font-size: 0.9rem; font-weight: 600; letter-spacing: 0.02em;
+      cursor: pointer; transition: all 0.2s ease;
+    }
+    button.primary { background: var(--accent-primary); color: #fff; }
+    button.primary:hover { background: var(--accent-hover); }
+    button.primary:active { transform: scale(0.98); }
+    button.danger { background: rgba(239, 68, 68, 0.1); color: var(--accent-danger); border: 1px solid rgba(239, 68, 68, 0.2); }
+    button.danger:hover { background: rgba(239, 68, 68, 0.2); }
+
+    .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 8px; }
+    .dk { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+    .dv { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .vu-bar { height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; margin-top: 4px; }
+    .vu-fill { height: 100%; width: 0%; background: var(--accent-primary); transition: width 0.08s linear; }
+
+    .terminal {
+      font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);
+      background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border-color);
+      border-radius: 12px; padding: 16px; height: 140px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .terminal::-webkit-scrollbar { width: 4px; }
+    .terminal::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    .lg { line-height: 1.4; word-break: break-all; }
+    .lt { color: rgba(255,255,255,0.2); margin-right: 8px; }
+    .le { color: var(--accent-danger); }
+    .lw { color: #f59e0b; }
+    
+    @media (max-width: 900px) {
+      .core { flex-direction: column; }
+      .side { width: 100%; flex: 0 0 auto; }
+      .viz-wrap { min-height: 35vh; }
+    }
   </style>
 </head>
 <body>
-<div class="grid-bg"></div>
+<div class="bg-static"></div>
+
 <div class="hud">
   <header class="header-bar">
     <div class="brand">
-      <h1>Audio_Sync_LINK</h1>
-      <span>// SENDER — Y4Z.DEV</span>
+      <h1>AirLink</h1>
+      <span>Sender</span>
     </div>
     <div class="header-right">
-      <a class="nav-link" href="/receiver">▶ Receiver</a>
-      <a class="nav-link" href="/manager">▶ Manager</a>
-      <span class="role-badge">MIC / SOURCE</span>
-      <span class="sys-dot" id="sysDot"></span>
-      <span id="sysText" style="font-family:var(--font-mono);font-size:0.8rem;">IDLE</span>
+      <a class="nav-link" href="/sender">Sender</a>
+      <a class="nav-link" href="/receiver">Receiver</a>
+      <a class="nav-link" href="/controller">Controller</a>
+      <a class="nav-link" href="/admin">Admin</a>
+      <div class="user-profile" style="width: 32px; height: 32px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid var(--border-color);" title="User Profile" onclick="window.location.href='/logout'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      </div>
     </div>
   </header>
+
   <main class="core">
     <section class="viz-wrap">
       <canvas id="viz"></canvas>
-      <div class="viz-label">› <span id="vizLabel">TX_STANDBY</span></div>
+      <div class="viz-label"><span id="vizLabel">STANDBY</span></div>
     </section>
+
     <aside class="side">
-
-      <!-- [01] Device identity -->
+      <!-- SETUP PANEL -->
       <div class="panel">
-        <div class="panel-hdr"><span>[01] Device Identity</span><span id="devRegState" style="color:var(--text-muted);">UNREGISTERED</span></div>
+        <div class="panel-hdr"><span>01 / Configuration</span></div>
         <div class="field">
-          <label>Device Name</label>
-          <input type="text" id="deviceName" placeholder="e.g. Desktop Mic, Game PC" maxlength="40">
-        </div>
-        <div class="data-grid" style="margin-bottom:8px;">
-          <div><div class="dk">DEVICE ID</div><div class="dv id-badge" id="devIdDisplay">—</div></div>
-          <div><div class="dk">STATUS</div><div class="dv" id="devStatusDisplay">OFFLINE</div></div>
-        </div>
-        <div class="btn-row">
-          <button class="primary" id="registerDevBtn">⬆ Register Device</button>
-        </div>
-      </div>
-
-      <!-- [02] New Stream -->
-      <div class="panel">
-        <div class="panel-hdr"><span>[02] New Stream</span></div>
-        <div class="field">
-          <label>Stream Name</label>
-          <input type="text" id="streamName" placeholder="e.g. game, mic, music" maxlength="32">
+          <label>Device Name (Node ID)</label>
+          <input type="text" id="deviceName" placeholder="e.g. Workstation" maxlength="40">
         </div>
         <div class="field">
-          <label>Source</label>
+          <label>Audio Source</label>
           <select id="sourceType">
-            <option value="system">System Audio (server cpal)</option>
-            <option value="browser">Browser Mic (getUserMedia)</option>
-            <option value="display">Display Audio (getDisplayMedia)</option>
+            <option value="system">System Audio (Server Host)</option>
+            <option value="browser">Local Mic (Browser)</option>
+            <option value="display">Screen Audio (Browser)</option>
           </select>
         </div>
         <div class="btn-row">
-          <button class="primary" id="startStreamBtn">▶ Start Stream</button>
+          <button class="primary" id="startStreamBtn">Connect & Stream</button>
+          <button class="danger" id="stopStreamBtn" style="display:none;">Disconnect</button>
         </div>
       </div>
 
-      <!-- [03] Active Streams -->
+      <!-- SYSTEM STATUS / TELEMETRY -->
       <div class="panel">
-        <div class="panel-hdr"><span>[03] Active Streams</span><span id="senderStreamCount">0</span></div>
-        <div id="senderStreamList" class="stream-list">
-          <div class="no-streams" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);">No active streams.</div>
+        <div class="panel-hdr">
+          <span>02 / Telemetry</span>
+          <div class="sys-indicator">
+            <span class="sys-dot" id="sysDot"></span>
+            <span id="sysText">IDLE</span>
+          </div>
         </div>
-      </div>
-
-      <!-- [04] Status -->
-      <div class="panel">
-        <div class="panel-hdr"><span>[04] Status</span></div>
         <div class="data-grid">
-          <div><div class="dk">STREAMS</div><div class="dv" id="senderNetState">0 ACTIVE</div></div>
-          <div><div class="dk">SERVER</div><div class="dv" id="senderSrvState">ONLINE</div></div>
-          <div><div class="dk">WS</div><div class="dv" id="wsState">DISCONNECTED</div></div>
-          <div><div class="dk">HEARTBEAT</div><div class="dv" id="hbState">—</div></div>
+          <div><div class="dk">Node ID</div><div class="dv" id="devIdDisplay">—</div></div>
+          <div><div class="dk">Connection</div><div class="dv" id="wsState">Disconnected</div></div>
+          <div><div class="dk">RTC Status</div><div class="dv" id="rtcStatusDisplay">—</div></div>
+          <div><div class="dk">Latency (RTT)</div><div class="dv" id="rtcLatencyDisplay">—</div></div>
+          <div style="grid-column: span 2;"><div class="dk">Audio Output</div><div class="vu-bar"><div class="vu-fill" id="vu_meter"></div></div></div>
         </div>
       </div>
 
+      <!-- TERMINAL -->
       <div class="terminal" id="logBox"></div>
     </aside>
   </main>
 </div>
+
 <script>
-// ── Device identity ─────────────────────────────────────────────────────────
+// ── State & Variables ───────────────────────────────────────────────────────
 let deviceId   = sessionStorage.getItem('sender_device_id') || '';
 let deviceName = sessionStorage.getItem('sender_device_name') || '';
-let registered = false;
+let registered = !!deviceId;
 let ws         = null;
 let hbInterval = null;
 
-if (deviceId)   document.getElementById('devIdDisplay').textContent = deviceId.slice(0,18)+'...';
 if (deviceName) document.getElementById('deviceName').value = deviceName;
-
-async function registerDevice() {
-  const name = document.getElementById('deviceName').value.trim();
-  if (!name) { log('Enter a device name first.', 'warn'); return; }
-  try {
-    const body = { name, role: 'mic' };
-    if (deviceId) body.id = deviceId;
-    const res = await fetch('/device/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const dev = await res.json();
-    deviceId   = dev.id;
-    deviceName = dev.name;
-    registered = true;
-    sessionStorage.setItem('sender_device_id',   deviceId);
-    sessionStorage.setItem('sender_device_name', deviceName);
-    document.getElementById('devIdDisplay').textContent     = deviceId.slice(0,18)+'...';
-    document.getElementById('devStatusDisplay').textContent = 'ONLINE';
-    document.getElementById('devRegState').textContent      = 'REGISTERED';
-    document.getElementById('devRegState').style.color      = 'var(--neon-green)';
-    log('Device registered: ' + deviceName + ' [' + deviceId.slice(0,8) + ']');
-    connectWs();
-    startHeartbeat();
-  } catch (err) {
-    log('Registration failed: ' + err.message, 'err');
-  }
+if (deviceId) {
+  document.getElementById('devIdDisplay').textContent = deviceId.slice(0, 12) + '...';
+  connectWs();
 }
 
+// ── Unified Setup Logic ─────────────────────────────────────────────────────
+async function establishUplink() {
+  if (Object.keys(activeConnections).length >= 1) {
+    log('Limit reached: 1 uplink per window.', 'warn');
+    return;
+  }
+
+  const dName = document.getElementById('deviceName').value.trim();
+  const source = document.getElementById('sourceType').value;
+  if (!dName) { log('Error: Device Name is required.', 'err'); return; }
+
+  if (!registered || deviceName !== dName) {
+    try {
+      log('Registering Node: ' + dName + '...');
+      const body = { name: dName, role: 'mic' };
+      if (deviceId) body.id = deviceId;
+      
+      const res = await fetch('/device/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(5000),
+      });
+      
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const dev = await res.json();
+      
+      deviceId   = dev.id;
+      deviceName = dev.name;
+      registered = true;
+      sessionStorage.setItem('sender_device_id', deviceId);
+      sessionStorage.setItem('sender_device_name', deviceName);
+      
+      document.getElementById('devIdDisplay').textContent = deviceId.slice(0, 12) + '...';
+      log('Node Verified. ID: ' + deviceId.slice(0, 8));
+      
+      if (!ws || ws.readyState > 1) connectWs();
+    } catch (err) {
+      log('Node Registration Failed: ' + err.message, 'err');
+      return;
+    }
+  }
+
+  startStream(deviceName, source);
+}
+
+document.getElementById('startStreamBtn').addEventListener('click', establishUplink);
+document.getElementById('stopStreamBtn').addEventListener('click', () => {
+  for (const name in activeConnections) { stopStream(name); }
+});
+
+// ── Websocket ───────────────────────────────────────────────────────────────
 function connectWs() {
   if (ws && ws.readyState < 2) return;
-  ws = new WebSocket('wss://' + location.host + '/ws');
-  ws.onopen  = () => { document.getElementById('wsState').textContent = 'CONNECTED'; log('WS connected.'); };
-  ws.onclose = () => { document.getElementById('wsState').textContent = 'DISCONNECTED'; setTimeout(connectWs, 5000); };
-  ws.onerror = () => { document.getElementById('wsState').textContent = 'ERROR'; };
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  
+  ws.onopen = () => { 
+    document.getElementById('wsState').textContent = 'Connected'; 
+    document.getElementById('wsState').style.color = 'var(--accent-success)';
+    log('Server connection established.'); 
+  };
+  
+  ws.onclose = () => { 
+    document.getElementById('wsState').textContent = 'Disconnected'; 
+    document.getElementById('wsState').style.color = 'var(--text-muted)';
+    setTimeout(connectWs, 5000); 
+  };
+  
+  ws.onerror = () => { document.getElementById('wsState').textContent = 'Error'; };
+  
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data);
-      // Sender only reacts to set_volume targeting this device
       if (msg.type === 'set_volume' && msg.device_id === deviceId) {
-        log('Manager set volume: ' + Math.round(msg.volume * 100) + '%', 'warn');
+        log('Remote Override: Gain set to ' + Math.round(msg.volume * 100) + '%', 'warn');
       }
     } catch {}
   };
 }
 
-function startHeartbeat() {
-  if (hbInterval) clearInterval(hbInterval);
-  hbInterval = setInterval(() => {
-    if (ws && ws.readyState === 1 && deviceId) {
-      ws.send(JSON.stringify({ type: 'heartbeat', device_id: deviceId }));
-      const t = new Date().toLocaleTimeString('en-US', { hour12: false });
-      document.getElementById('hbState').textContent = t;
-    }
-  }, 10000);
-}
+// ── Streaming Logic ─────────────────────────────────────────────────────────
+const activeConnections = {};
+const backoffMap = {};
 
-document.getElementById('registerDevBtn').addEventListener('click', registerDevice);
-
-// ── Canvas visualizer ───────────────────────────────────────────────────────
-const canvas = document.getElementById('viz');
-const ctx    = canvas.getContext('2d');
-let analyserNodes = [];
-
-function resizeCanvas(){
-  const r=canvas.parentNode.getBoundingClientRect();
-  const d=window.devicePixelRatio||1;
-  canvas.width=r.width*d;canvas.height=r.height*d;
-  ctx.setTransform(d,0,0,d,0,0);
-}
-window.addEventListener('resize',resizeCanvas);
-
-function vizLoop(){
-  const w=canvas.clientWidth,h=canvas.clientHeight;
-  ctx.clearRect(0,0,w,h);
-  if(analyserNodes.length===0){
-    ctx.fillStyle='rgba(255,136,0,0.15)';ctx.fillRect(0,h/2-1,w,2);
+function updateCount() {
+  const n = Object.keys(activeConnections).length;
+  if (n === 0) {
+    setSys('IDLE', 'idle');
+    document.getElementById('startStreamBtn').style.display = 'block';
+    document.getElementById('stopStreamBtn').style.display = 'none';
+    document.getElementById('rtcStatusDisplay').textContent = '—';
+    document.getElementById('rtcLatencyDisplay').textContent = '—';
+    document.getElementById('vu_meter').style.width = '0%';
   } else {
-    analyserNodes.forEach((an)=>{
-      const data=new Uint8Array(an.frequencyBinCount);
-      an.getByteFrequencyData(data);
-      const bars=60,step=Math.floor(data.length/bars),bw=w/bars,cy=h/2;
-      for(let i=0;i<bars;i++){
-        let s=0;for(let j=0;j<step;j++)s+=data[i*step+j]||0;
-        const norm=Math.pow(s/step/255,1.5);
-        const bh=Math.max(2,norm*(h*0.4));
-        ctx.fillStyle='#ff8800';ctx.shadowBlur=8*norm;ctx.shadowColor='#ff8800';
-        ctx.fillRect(i*bw+1,cy-bh,bw-2,bh);
-        ctx.fillRect(i*bw+1,cy,bw-2,bh);
-      }
-      ctx.shadowBlur=0;
-    });
+    document.getElementById('startStreamBtn').style.display = 'none';
+    document.getElementById('stopStreamBtn').style.display = 'block';
   }
-  requestAnimationFrame(vizLoop);
 }
 
-// ── Logging ─────────────────────────────────────────────────────────────────
-const logEl  = document.getElementById('logBox');
-const sysDot = document.getElementById('sysDot');
-const sysText= document.getElementById('sysText');
+setInterval(async () => {
+  for (const name in activeConnections) {
+    const conn = activeConnections[name];
+    if (conn && conn.pc) {
+      let rtt = '--';
+      try {
+        const stats = await conn.pc.getStats();
+        stats.forEach(report => {
+          if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.currentRoundTripTime !== undefined) {
+            rtt = (report.currentRoundTripTime * 1000).toFixed(0) + ' ms';
+          }
+        });
+      } catch (e) {}
+      document.getElementById('rtcStatusDisplay').textContent = conn.pc.connectionState.toUpperCase();
+      document.getElementById('rtcLatencyDisplay').textContent = rtt;
+    }
+  }
+}, 2000);
 
-function log(msg,type=''){
-  const d=document.createElement('div');
-  d.className='lg'+(type==='err'?' le':type==='warn'?' lw':'');
-  const t=new Date().toLocaleTimeString('en-US',{hour12:false});
-  d.innerHTML=`<span class="lt">[${t}]</span>${msg}`;
-  logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;
-}
-function setSys(text,level='idle'){
-  sysText.textContent=text;
-  sysDot.className='sys-dot '+(level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
-}
-function makePC(){
-  return new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-}
-async function sendOffer(endpoint,body){
-  const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
-  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+window.stopStream = function(name) {
+  const conn = activeConnections[name];
+  if (conn) {
+    if (conn.pc) conn.pc.close();
+    if (conn.stream) conn.stream.getTracks().forEach(t => t.stop());
+    if (conn.an) analyserNodes = analyserNodes.filter(a => a !== conn.an);
+    delete activeConnections[name];
+  }
+  fetch('/stream/' + encodeURIComponent(name), { method: 'DELETE' }).catch(() => {});
+  
+  updateCount();
+  log(`Stream terminated: ${name}`, 'warn');
+  document.getElementById('vizLabel').textContent = 'STANDBY';
+};
+
+async function sendOffer(endpoint, body) {
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-const activeConnections={};
-
-// Backoff per-stream name
-const backoffMap={};
-
-function updateCount(){
-  const n=Object.keys(activeConnections).length;
-  document.getElementById('senderStreamCount').textContent=n;
-  document.getElementById('senderNetState').textContent=n+' ACTIVE';
-  if(n===0)setSys('IDLE','idle');
+function makePC() {
+  return new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
 }
 
-function renderCard(name){
-  const list=document.getElementById('senderStreamList');
-  const ex=list.querySelector('.no-streams');if(ex)ex.remove();
-  const card=document.createElement('div');
-  card.id='scard_'+name;card.className='sender-card';
-  card.innerHTML=`<div class="sender-card-row"><span style="font-family:var(--font-mono);font-size:0.82rem;color:var(--neon-orange);flex:1;">● ${name}</span><button class="danger" style="flex:0;min-width:60px;padding:3px 6px;font-size:0.7rem;" onclick="stopStream('${name}')">Stop</button></div><div class="vu-bar"><div class="vu-fill" id="vu_${name}"></div></div>`;
-  list.appendChild(card);
-}
-
-window.stopStream=function(name){
-  const conn=activeConnections[name];
-  if(conn){
-    if(conn.pc)conn.pc.close();
-    if(conn.stream)conn.stream.getTracks().forEach(t=>t.stop());
-    if(conn.an)analyserNodes=analyserNodes.filter(a=>a!==conn.an);
-    delete activeConnections[name];
+async function startStream(name, source) {
+  if (Object.keys(activeConnections).length >= 1) { 
+    log(`Cannot start "${name}": maximum 1 active stream allowed.`, 'warn'); 
+    return; 
   }
-  fetch('/stream/'+encodeURIComponent(name),{method:'DELETE'}).catch(()=>{});
-  const card=document.getElementById('scard_'+name);if(card)card.remove();
-  const list=document.getElementById('senderStreamList');
-  if(list&&list.children.length===0){
-    const ph=document.createElement('div');ph.className='no-streams';
-    ph.style.cssText='font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);';
-    ph.textContent='No active streams.';list.appendChild(ph);
-  }
-  updateCount();log('Stream stopped: '+name,'warn');
-};
+  if (activeConnections[name]) { log(`"${name}" is already transmitting.`, 'warn'); return; }
+  
+  setSys('TRANSMITTING', 'live');
+  log(`Initializing stream: ${name} [${source}]`);
+  document.getElementById('vizLabel').textContent = `LIVE: ${name}`;
+  backoffMap[name] = backoffMap[name] || 2000;
 
-async function startStream(){
-  const name  =document.getElementById('streamName').value.trim();
-  const source=document.getElementById('sourceType').value;
-  if(!name){log('Enter a stream name first.','warn');return;}
-  if(activeConnections[name]){log('"'+name+'" already running.','warn');return;}
-  if(!registered){
-    log('Register this device first before starting a stream.','warn');
-    return;
-  }
-  setSys('BROADCASTING','live');
-  log('Starting: '+name+' ('+source+')');
-  document.getElementById('vizLabel').textContent='TX // '+name;
-  backoffMap[name]=backoffMap[name]||2000;
-
-  if(source==='system'){
-    try{
-      const dpc=makePC();
-      dpc.addTransceiver('audio',{direction:'sendrecv'});
-      const offer=await dpc.createOffer();
+  if (source === 'system') {
+    try {
+      const dpc = makePC();
+      dpc.addTransceiver('audio', { direction: 'sendrecv' });
+      const offer = await dpc.createOffer();
       await dpc.setLocalDescription(offer);
-      await sendOffer('/sender/offer',{name,source:'system',sdp:dpc.localDescription});
-      activeConnections[name]={pc:dpc,stream:null,an:null};
-      renderCard(name);updateCount();
-      log('System capture: '+name);
-      backoffMap[name]=2000;
-    } catch(err){
-      log('Failed: '+err.message,'err');setSys('IDLE','idle');
-      const delay=backoffMap[name]||2000;
-      backoffMap[name]=Math.min(delay*2,30000);
-      log('Retry in '+(delay/1000)+'s...','warn');
-      setTimeout(startStream,delay);
+      await sendOffer('/sender/offer', { name, source: 'system', sdp: dpc.localDescription });
+      
+      activeConnections[name] = { pc: dpc, stream: null, an: null };
+      updateCount();
+      log(`System capture engaged: ${name}`);
+      backoffMap[name] = 2000;
+    } catch (err) {
+      log(`Failed: ${err.message}`, 'err');
+      setSys('ERROR', 'err');
+      const delay = backoffMap[name] || 2000;
+      backoffMap[name] = Math.min(delay * 2, 30000);
+      log(`Retrying in ${delay/1000}s...`, 'warn');
+      setTimeout(() => startStream(name, source), delay);
     }
     return;
   }
 
   let stream;
-  try{
-    if(source==='browser'){
-      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:2,sampleRate:48000},video:false});
+  try {
+    if (source === 'browser') {
+      stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, 
+        video: false 
+      });
     } else {
-      stream=await navigator.mediaDevices.getDisplayMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:2,sampleRate:48000},video:true});
-      stream.getVideoTracks().forEach(t=>t.stop());
+      stream = await navigator.mediaDevices.getDisplayMedia({ 
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, 
+        video: true 
+      });
+      stream.getVideoTracks().forEach(t => t.stop());
     }
-  } catch(err){
-    log('Media capture failed: '+err.message,'err');setSys('IDLE','idle');return;
+  } catch (err) {
+    log(`Hardware capture failed: ${err.message}`, 'err');
+    setSys('ERROR', 'err');
+    return;
   }
 
-  try{
-    const pc2=makePC();
-    const [audioTrack]=stream.getAudioTracks();
-    const sender=pc2.addTrack(audioTrack,stream);
-    const params=sender.getParameters();
-    if(!params.encodings)params.encodings=[{}];
-    params.encodings[0].maxBitrate=192000;
-    params.encodings[0].priority='high';
-    sender.setParameters(params).catch(()=>{});
+  try {
+    const pc2 = makePC();
+    const [audioTrack] = stream.getAudioTracks();
+    const sender = pc2.addTrack(audioTrack, stream);
+    
+    const params = sender.getParameters();
+    if (!params.encodings) params.encodings = [{}];
+    params.encodings[0].maxBitrate = 192000;
+    params.encodings[0].priority = 'high';
+    sender.setParameters(params).catch(() => {});
 
-    const actx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:48000});
-    const src2=actx.createMediaStreamSource(stream);
-    const an2=actx.createAnalyser();an2.fftSize=256;
+    const actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+    const src2 = actx.createMediaStreamSource(stream);
+    const an2 = actx.createAnalyser(); 
+    an2.fftSize = 256;
     src2.connect(an2);
     analyserNodes.push(an2);
 
-    pc2.onconnectionstatechange=()=>{
-      log('['+name+'] '+pc2.connectionState);
-      if(pc2.connectionState==='failed'||pc2.connectionState==='disconnected'){
+    pc2.onconnectionstatechange = () => {
+      log(`[${name}] State: ${pc2.connectionState}`);
+      if (pc2.connectionState === 'failed' || pc2.connectionState === 'disconnected') {
         delete activeConnections[name];
-        analyserNodes=analyserNodes.filter(a=>a!==an2);
+        analyserNodes = analyserNodes.filter(a => a !== an2);
         updateCount();
-        const delay=backoffMap[name]||2000;
-        backoffMap[name]=Math.min(delay*2,30000);
-        log('Link lost: '+name+'. Retry in '+(delay/1000)+'s','warn');
-        setTimeout(()=>{
-          document.getElementById('streamName').value=name;
-          document.getElementById('sourceType').value=source;
-          startStream();
-        },delay);
+        const delay = backoffMap[name] || 2000;
+        backoffMap[name] = Math.min(delay * 2, 30000);
+        log(`Connection Lost: ${name}. Reconnecting in ${delay/1000}s`, 'warn');
+        setTimeout(() => startStream(name, source), delay);
       }
-      if(pc2.connectionState==='connected')backoffMap[name]=2000;
+      if (pc2.connectionState === 'connected') backoffMap[name] = 2000;
     };
 
-    const offer=await pc2.createOffer();
+    const offer = await pc2.createOffer();
     await pc2.setLocalDescription(offer);
-    const answer=await sendOffer('/sender/offer',{name,source,sdp:pc2.localDescription});
+    const answer = await sendOffer('/sender/offer', { name, source, sdp: pc2.localDescription });
     await pc2.setRemoteDescription(answer);
 
-    activeConnections[name]={pc:pc2,stream,an:an2};
-    renderCard(name);updateCount();
-    log('Stream live: '+name);
-    backoffMap[name]=2000;
+    activeConnections[name] = { pc: pc2, stream, an: an2 };
+    updateCount();
+    log(`Stream Active: ${name}`);
+    backoffMap[name] = 2000;
 
-    function vuTick(){
-      if(!activeConnections[name])return;
-      const data=new Uint8Array(an2.frequencyBinCount);
+    function vuTick() {
+      if (!activeConnections[name]) return;
+      const data = new Uint8Array(an2.frequencyBinCount);
       an2.getByteFrequencyData(data);
-      const avg=data.reduce((a,b)=>a+b,0)/data.length;
-      const vu=document.getElementById('vu_'+name);
-      if(vu)vu.style.width=Math.min(100,avg/255*100*2.5)+'%';
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      const vu = document.getElementById('vu_meter');
+      if (vu) vu.style.width = Math.min(100, (avg / 255) * 100 * 2.5) + '%';
       requestAnimationFrame(vuTick);
     }
     vuTick();
-  } catch(err){
-    log('Start failed: '+err.message,'err');setSys('IDLE','idle');
+  } catch (err) {
+    log(`Initialization failed: ${err.message}`, 'err');
+    setSys('ERROR', 'err');
   }
 }
 
-document.getElementById('startStreamBtn').addEventListener('click',startStream);
+// ── Visualizer & Logging ────────────────────────────────────────────────────
+const canvas = document.getElementById('viz');
+const ctx = canvas.getContext('2d');
+let analyserNodes = [];
 
-// Auto-re-register if session already has id
-if(deviceId && deviceName) {
-  registerDevice();
+function resizeCanvas() {
+  const r = canvas.parentNode.getBoundingClientRect();
+  const d = window.devicePixelRatio || 1;
+  canvas.width = r.width * d;
+  canvas.height = r.height * d;
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+}
+window.addEventListener('resize', resizeCanvas);
+
+function vizLoop() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  
+  if (analyserNodes.length === 0) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.fillRect(0, h / 2 - 1, w, 2);
+  } else {
+    analyserNodes.forEach((an) => {
+      const data = new Uint8Array(an.frequencyBinCount);
+      an.getByteFrequencyData(data);
+      const bars = 80, step = Math.floor(data.length / bars), bw = w / bars, cy = h / 2;
+      
+      for (let i = 0; i < bars; i++) {
+        let s = 0; 
+        for (let j = 0; j < step; j++) s += data[i * step + j] || 0;
+        const norm = Math.pow(s / step / 255, 1.5);
+        const bh = Math.max(2, norm * (h * 0.45));
+        
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.8)';
+        ctx.fillRect(i * bw + 1, cy - bh, bw - 2, bh * 2);
+      }
+    });
+  }
+  requestAnimationFrame(vizLoop);
 }
 
+const logEl = document.getElementById('logBox');
+const sysDot = document.getElementById('sysDot');
+const sysText = document.getElementById('sysText');
+
+function log(msg, type = '') {
+  const d = document.createElement('div');
+  d.className = 'lg' + (type === 'err' ? ' le' : type === 'warn' ? ' lw' : '');
+  const t = new Date().toLocaleTimeString('en-US', { hour12: false });
+  d.innerHTML = `<span class="lt">[${t}]</span> ${msg}`;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setSys(text, level = 'idle') {
+  sysText.textContent = text;
+  sysDot.className = 'sys-dot ' + (level === 'live' ? 'live' : level === 'warn' ? 'warn' : level === 'err' ? 'err' : '');
+}
+
+// Initialization
 resizeCanvas();
 requestAnimationFrame(vizLoop);
-log('SENDER READY. Register device then start a stream.');
+log('System ready.');
 </script>
 </body>
 </html>
