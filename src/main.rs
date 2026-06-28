@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, State,
+        Path, State, DefaultBodyLimit,
     },
     response::Html,
     routing::{delete, get, patch, post},
@@ -20,6 +20,7 @@ use tokio::sync::{broadcast, oneshot};
 
 mod db;
 mod auth;
+pub mod player;
 
 // Removed WebRTC
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -107,6 +108,7 @@ struct AppState {
     devices:  Arc<DashMap<String, DeviceInfo>>,
     event_tx: broadcast::Sender<ControlEvent>,
     db:       Arc<db::Db>,
+    player_state: Arc<player::PlayerState>,
 }
 
 // ── LAN IP ────────────────────────────────────────────────────────────────────
@@ -128,12 +130,17 @@ async fn main() -> Result<()> {
 
     let (event_tx, _) = broadcast::channel::<ControlEvent>(256);
 
+    let player_state = player::PlayerState::new();
+
     let state = Arc::new(AppState {
         streams:  Arc::new(DashMap::new()),
         devices:  Arc::new(DashMap::new()),
         event_tx,
         db,
+        player_state: player_state.clone(),
     });
+    
+    tokio::spawn(player::start_player_loop(state.clone()));
 
     let state_clone = state.clone();
     tokio::spawn(async move {
@@ -171,6 +178,8 @@ async fn main() -> Result<()> {
     use axum::middleware;
     
     let pages = Router::new()
+        .nest("/api/player", player::player_routes().layer(DefaultBodyLimit::disable()))
+        .with_state(state.clone())
         .route("/sender",   get(sender_handler))
         .route("/receiver", get(receiver_handler))
         .route("/controller",get(controller_handler))

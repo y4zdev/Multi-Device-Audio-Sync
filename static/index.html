@@ -710,7 +710,7 @@ function connectToStream(streamName) {
     
     const currentTime = audioCtx.currentTime;
     if (nextPlayTime < currentTime) {
-      nextPlayTime = currentTime + 0.05; // 50ms buffer for latency smoothing
+      nextPlayTime = currentTime + 0.25; // 250ms buffer for latency smoothing
     }
     src.start(nextPlayTime);
     nextPlayTime += buffer.duration;
