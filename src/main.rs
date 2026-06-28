@@ -64,6 +64,7 @@ pub struct DeviceInfo {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ControlEvent {
     DeviceJoined   { device: DeviceInfo },
+    DeviceUpdated  { device: DeviceInfo },
     DeviceLeft     { id: String },
     StreamAdded    { name: String },
     StreamRemoved  { name: String },
@@ -132,6 +133,39 @@ async fn main() -> Result<()> {
         devices:  Arc::new(DashMap::new()),
         event_tx,
         db,
+    });
+
+    let state_clone = state.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64;
+
+            let mut to_remove = Vec::new();
+            let mut to_offline = Vec::new();
+
+            for mut entry in state_clone.devices.iter_mut() {
+                let diff = now.saturating_sub(entry.last_seen);
+                if diff > 300_000 {
+                    to_remove.push(entry.key().clone());
+                } else if diff > 15_000 && matches!(entry.status, DeviceStatus::Online) {
+                    entry.value_mut().status = DeviceStatus::Offline;
+                    to_offline.push(entry.value().clone());
+                }
+            }
+
+            for id in to_remove {
+                state_clone.devices.remove(&id);
+                let _ = state_clone.event_tx.send(ControlEvent::DeviceLeft { id: id.clone() });
+                println!("[device] swept: {id}");
+            }
+            for dev in to_offline {
+                let _ = state_clone.event_tx.send(ControlEvent::DeviceUpdated { device: dev });
+            }
+        }
     });
 
     use axum::middleware;
@@ -278,19 +312,36 @@ async fn register_device(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RegisterDeviceRequest>,
 ) -> (axum::http::StatusCode, Json<DeviceInfo>) {
-    let id = req.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let device = DeviceInfo {
-        id:               id.clone(),
-        name:             req.name,
-        role:             req.role,
-        status:           DeviceStatus::Online,
-        assigned_streams: vec![],
-        volume:           1.0,
-        last_seen:        now_ms(),
+    let mut existing = None;
+    for entry in state.devices.iter() {
+        if entry.value().name == req.name && entry.value().role == req.role {
+            if matches!(entry.value().status, DeviceStatus::Offline) {
+                existing = Some(entry.value().clone());
+                break;
+            }
+        }
+    }
+
+    let device = if let Some(mut dev) = existing {
+        dev.status = DeviceStatus::Online;
+        dev.last_seen = now_ms();
+        dev
+    } else {
+        let id = req.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        DeviceInfo {
+            id,
+            name:             req.name,
+            role:             req.role,
+            status:           DeviceStatus::Online,
+            assigned_streams: vec![],
+            volume:           1.0,
+            last_seen:        now_ms(),
+        }
     };
-    state.devices.insert(id.clone(), device.clone());
+
+    state.devices.insert(device.id.clone(), device.clone());
     let _ = state.event_tx.send(ControlEvent::DeviceJoined { device: device.clone() });
-    println!("[device] registered: {} ({})", device.name, id);
+    println!("[device] registered: {} ({})", device.name, device.id);
     (axum::http::StatusCode::CREATED, Json(device))
 }
 
@@ -327,6 +378,14 @@ async fn patch_device_volume(
             device_id: id.clone(),
             stream:    None,
             volume:    dev.volume,
+        });
+        axum::http::StatusCode::NO_CONTENT
+    } else if state.streams.contains_key(&id) {
+        // Broadcast SetVolume for the stream sender
+        let _ = state.event_tx.send(ControlEvent::SetVolume {
+            device_id: id.clone(),
+            stream:    None,
+            volume:    req.volume.clamp(0.0, 2.0),
         });
         axum::http::StatusCode::NO_CONTENT
     } else {
@@ -390,6 +449,11 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
         return;
     }
 
+    let mut current_device_id: Option<String> = None;
+    let mut ping_interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+    ping_interval.tick().await; // consume the immediate first tick
+    let mut pong_deadline: Option<tokio::time::Instant> = None;
+
     loop {
         tokio::select! {
             event = rx.recv() => {
@@ -407,15 +471,41 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
                     Err(_) => break,
                 }
             }
+            _ = ping_interval.tick() => {
+                if let Some(dl) = pong_deadline {
+                    if tokio::time::Instant::now() > dl {
+                        // Pong never arrived within 8s - connection is dead
+                        println!("[ws] pong timeout - connection dead");
+                        break;
+                    }
+                }
+                if socket.send(Message::Ping(vec![].into())).await.is_err() {
+                    break;
+                }
+                // Set pong deadline 8s from now
+                pong_deadline = Some(tokio::time::Instant::now() + tokio::time::Duration::from_secs(8));
+            }
             msg = socket.recv() => {
                 match msg {
                     Some(Ok(Message::Text(t))) => {
                         if let Ok(val) = serde_json::from_str::<serde_json::Value>(&t) {
                             if val.get("type").and_then(|v| v.as_str()) == Some("heartbeat") {
                                 if let Some(id) = val.get("device_id").and_then(|v| v.as_str()) {
+                                    if current_device_id.is_none() {
+                                        current_device_id = Some(id.to_string());
+                                    }
+                                    let mut updated = None;
                                     if let Some(mut dev) = state.devices.get_mut(id) {
                                         dev.last_seen = now_ms();
-                                        dev.status = DeviceStatus::Online;
+                                        if matches!(dev.status, DeviceStatus::Offline) {
+                                            dev.status = DeviceStatus::Online;
+                                            updated = Some(dev.clone());
+                                        } else {
+                                            dev.status = DeviceStatus::Online;
+                                        }
+                                    }
+                                    if let Some(dev) = updated {
+                                        let _ = state.event_tx.send(ControlEvent::DeviceUpdated { device: dev });
                                     }
                                 }
                             } else if val.get("type").and_then(|v| v.as_str()) == Some("ping") {
@@ -426,10 +516,23 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
                             }
                         }
                     }
+                    Some(Ok(Message::Pong(_))) => { pong_deadline = None; }
                     Some(Ok(Message::Close(_))) | None => break,
                     _ => {}
                 }
             }
+        }
+    }
+
+    if let Some(id) = current_device_id {
+        let mut updated = None;
+        if let Some(mut dev) = state.devices.get_mut(&id) {
+            dev.status = DeviceStatus::Offline;
+            updated = Some(dev.clone());
+        }
+        if let Some(dev) = updated {
+            println!("[device] OFFLINE (realtime): {}", dev.name);
+            let _ = state.event_tx.send(ControlEvent::DeviceUpdated { device: dev });
         }
     }
 }
@@ -456,11 +559,26 @@ async fn handle_ws_sender(mut socket: WebSocket, state: Arc<AppState>, name: Str
         // Wait, for system capture we'll spawn a thread locally in a different endpoint or at startup.
     }
 
+    let mut frame_count: u64 = 0;
     while let Some(msg) = socket.recv().await {
-        if let Ok(Message::Binary(data)) = msg {
-            let _ = tx.send(Bytes::from(data));
-        } else if let Ok(Message::Close(_)) = msg {
-            break;
+        match msg {
+            Ok(Message::Binary(data)) => {
+                let _ = tx.send(Bytes::from(data));
+                frame_count += 1;
+                if frame_count % 500 == 1 {
+                    println!("[stream] {name}: frame #{frame_count}, subscribers={}", tx.receiver_count());
+                }
+            }
+            Ok(Message::Ping(data)) => {
+                let _ = socket.send(Message::Pong(data)).await;
+            }
+            Ok(Message::Pong(_)) => {}
+            Ok(Message::Close(_)) => break,
+            Ok(_) => {} // Text or other
+            Err(e) => {
+                println!("[stream] {name}: recv error: {e}");
+                break;
+            }
         }
     }
 

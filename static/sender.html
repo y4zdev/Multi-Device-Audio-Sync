@@ -199,6 +199,37 @@
     .lt { color: rgba(255,255,255,0.2); margin-right: 8px; }
     .le { color: var(--accent-danger); }
     .lw { color: #f59e0b; }
+
+    /* Custom Source List Styles */
+    .source-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 160px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .source-list::-webkit-scrollbar { width: 4px; }
+    .source-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    .source-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .source-item:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); }
+    .source-item.active {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.4);
+    }
+    .source-item.active .si-check { opacity: 1; color: var(--accent-primary); }
+    .si-check { opacity: 0; transition: 0.2s; width: 16px; height: 16px; }
+    .si-label { flex: 1; font-size: 0.85rem; font-weight: 500; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     
     @media (max-width: 900px) {
       .core { flex-direction: column; }
@@ -242,12 +273,16 @@
           <input type="text" id="deviceName" placeholder="e.g. Workstation" maxlength="40">
         </div>
         <div class="field">
-          <label>Audio Source</label>
-          <select id="sourceType">
-            <option value="system">System Audio (Server Host)</option>
-            <option value="browser">Local Mic (Browser)</option>
-            <option value="display">Screen Audio (Browser)</option>
-          </select>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
+            <label>Audio Sources</label>
+            <button id="btnScan" style="background:none;border:none;color:var(--accent-primary);cursor:pointer;font-size:0.75rem;padding:0;font-weight:600;">Scan Devices</button>
+          </div>
+          <div id="sourceList" class="source-list">
+            <div class="source-item active" data-val="display">
+              <svg class="si-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+              <span class="si-label">Screen Audio (Browser)</span>
+            </div>
+          </div>
         </div>
         <div class="btn-row">
           <button class="primary" id="startStreamBtn">Connect & Stream</button>
@@ -286,6 +321,11 @@ let deviceName = sessionStorage.getItem('sender_device_name') || '';
 let registered = !!deviceId;
 let ws         = null;
 let hbInterval = null;
+let selectedSources = new Set(['display']);
+let sourceStreamMap = {};
+let pendingChanges = false;
+const activeConnections = {};
+let globalVolume = 1.0;
 
 if (deviceName) document.getElementById('deviceName').value = deviceName;
 if (deviceId) {
@@ -295,13 +335,9 @@ if (deviceId) {
 
 // ── Unified Setup Logic ─────────────────────────────────────────────────────
 async function establishUplink() {
-  if (Object.keys(activeConnections).length >= 1) {
-    log('Limit reached: 1 uplink per window.', 'warn');
-    return;
-  }
+  if (selectedSources.size === 0) { log('Error: No source selected.', 'err'); return; }
 
   const dName = document.getElementById('deviceName').value.trim();
-  const source = document.getElementById('sourceType').value;
   if (!dName) { log('Error: Device Name is required.', 'err'); return; }
 
   if (!registered || deviceName !== dName) {
@@ -336,12 +372,134 @@ async function establishUplink() {
     }
   }
 
-  startStream(deviceName, source);
+  for (const srcVal of selectedSources) {
+    const sName = deviceName;
+    if (!sourceStreamMap[srcVal]) {
+      sourceStreamMap = { [srcVal]: sName };
+      await startStream(sName, srcVal);
+    }
+  }
 }
 
+function checkChanges() {
+  const isStreaming = Object.keys(activeConnections).length > 0;
+  const stopBtn = document.getElementById('stopStreamBtn');
+  if (!isStreaming) {
+    pendingChanges = false;
+    stopBtn.textContent = 'Disconnect';
+    stopBtn.classList.remove('primary');
+    stopBtn.classList.add('danger');
+    stopBtn.style.background = '';
+    document.getElementById('deviceName').readOnly = false;
+    return;
+  }
+  
+  document.getElementById('deviceName').readOnly = true;
+  
+  const currentActive = new Set(Object.keys(sourceStreamMap));
+  let hasChanges = false;
+  if (selectedSources.size !== currentActive.size) {
+    hasChanges = true;
+  } else {
+    for (let s of selectedSources) {
+      if (!currentActive.has(s)) { hasChanges = true; break; }
+    }
+  }
+  
+  pendingChanges = hasChanges;
+  if (hasChanges) {
+    stopBtn.textContent = 'Apply Changes';
+    stopBtn.classList.remove('danger');
+    stopBtn.classList.add('primary');
+    stopBtn.style.background = 'var(--accent-warning)';
+  } else {
+    stopBtn.textContent = 'Disconnect';
+    stopBtn.classList.remove('primary');
+    stopBtn.classList.add('danger');
+    stopBtn.style.background = '';
+  }
+}
+
+document.getElementById('sourceList').addEventListener('click', (e) => {
+  const item = e.target.closest('.source-item');
+  if (!item) return;
+  const val = item.dataset.val;
+  
+  if (selectedSources.has(val)) return;
+  
+  selectedSources.clear();
+  document.querySelectorAll('.source-item').forEach(el => el.classList.remove('active'));
+  
+  selectedSources.add(val);
+  item.classList.add('active');
+  
+  checkChanges();
+});
+
+async function scanDevices(promptPerms = false) {
+  try {
+    if (promptPerms) {
+      const s = await navigator.mediaDevices.getUserMedia({audio:true});
+      s.getTracks().forEach(t=>t.stop());
+    }
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const sel = document.getElementById('sourceList');
+    
+    sel.innerHTML = `
+      <div class="source-item ${selectedSources.has('display')?'active':''}" data-val="display">
+        <svg class="si-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+        <span class="si-label">Screen Audio (Browser)</span>
+      </div>
+    `;
+    
+    devs.filter(d=>d.kind==='audioinput').forEach(d => {
+      const val = 'mic:' + d.deviceId;
+      const isAct = selectedSources.has(val);
+      const div = document.createElement('div');
+      div.className = 'source-item ' + (isAct ? 'active' : '');
+      div.dataset.val = val;
+      div.innerHTML = `
+        <svg class="si-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+        <span class="si-label">${d.label || 'Microphone'}</span>
+      `;
+      sel.appendChild(div);
+    });
+  } catch (err) {
+    log('Failed to scan devices: ' + err.message, 'err');
+  }
+}
+
+scanDevices(false);
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+  navigator.mediaDevices.addEventListener('devicechange', () => scanDevices(false));
+}
+
+document.getElementById('btnScan').addEventListener('click', (e) => {
+  e.preventDefault();
+  scanDevices(true);
+});
+
 document.getElementById('startStreamBtn').addEventListener('click', establishUplink);
-document.getElementById('stopStreamBtn').addEventListener('click', () => {
-  for (const name in activeConnections) { stopStream(name); }
+
+document.getElementById('stopStreamBtn').addEventListener('click', async () => {
+  if (pendingChanges) {
+    const src = Array.from(selectedSources)[0];
+    const dName = document.getElementById('deviceName').value.trim() || 'Node';
+    const isStreaming = Object.keys(activeConnections).length > 0;
+    
+    if (isStreaming) {
+      await swapStreamSource(dName, src);
+      sourceStreamMap = { [src]: dName };
+    } else {
+      await startStream(dName, src);
+      sourceStreamMap = { [src]: dName };
+    }
+    checkChanges();
+  } else {
+    for (const name in activeConnections) { stopStream(name); }
+    sourceStreamMap = {};
+    checkChanges();
+  }
 });
 
 // ── Websocket ───────────────────────────────────────────────────────────────
@@ -359,7 +517,9 @@ function connectWs() {
   ws.onclose = () => { 
     document.getElementById('wsState').textContent = 'Disconnected'; 
     document.getElementById('wsState').style.color = 'var(--text-muted)';
-    setTimeout(connectWs, 5000); 
+    // Don't stop audio streams - they use separate WebSocket connections
+    // Just silently reconnect the control channel
+    setTimeout(connectWs, 2000); 
   };
   
   ws.onerror = () => { document.getElementById('wsState').textContent = 'Error'; };
@@ -370,7 +530,8 @@ function connectWs() {
       if (msg.type === 'pong') {
         const rtt = Date.now() - msg.ts;
         document.getElementById('rtcLatencyDisplay').textContent = rtt + ' ms';
-      } else if (msg.type === 'set_volume' && msg.device_id === deviceId) {
+      } else if (msg.type === 'set_volume' && (msg.device_id === deviceId || msg.device_id === deviceName)) {
+        globalVolume = msg.volume;
         log('Remote Override: Gain set to ' + Math.round(msg.volume * 100) + '%', 'warn');
       }
     } catch {}
@@ -378,7 +539,6 @@ function connectWs() {
 }
 
 // ── Streaming Logic ─────────────────────────────────────────────────────────
-const activeConnections = {};
 const backoffMap = {};
 
 function updateCount() {
@@ -393,6 +553,7 @@ function updateCount() {
     document.getElementById('startStreamBtn').style.display = 'none';
     document.getElementById('stopStreamBtn').style.display = 'block';
   }
+  checkChanges();
 }
 
 let totalBytesSent = 0;
@@ -419,6 +580,7 @@ window.stopStream = function(name) {
   if (conn) {
     if (conn.pc) conn.pc.close();
     if (conn.stream) conn.stream.getTracks().forEach(t => t.stop());
+    if (conn.srcNode) conn.srcNode.disconnect();
     if (conn.an) analyserNodes = analyserNodes.filter(a => a !== conn.an);
     delete activeConnections[name];
   }
@@ -437,42 +599,55 @@ function makePC() {
   // Not used for WS
 }
 
-async function startStream(name, source) {
-  if (Object.keys(activeConnections).length >= 1) { 
-    log(`Cannot start "${name}": maximum 1 active stream allowed.`, 'warn'); 
-    return; 
+async function swapStreamSource(name, source) {
+  const conn = activeConnections[name];
+  if (!conn) return startStream(name, source);
+  
+  log(`Swapping audio source to ${source}...`);
+  try {
+    let newStream;
+    if (source === 'display') {
+      newStream = await navigator.mediaDevices.getDisplayMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, video: true });
+      newStream.getVideoTracks().forEach(t => t.stop());
+    } else if (source.startsWith('mic:')) {
+      const devId = source.split('mic:')[1];
+      const constraints = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 } };
+      if (devId && devId !== 'default') constraints.audio.deviceId = { exact: devId };
+      newStream = await navigator.mediaDevices.getUserMedia(constraints);
+    }
+    
+    if (conn.stream) conn.stream.getTracks().forEach(t => t.stop());
+    if (conn.srcNode) conn.srcNode.disconnect();
+    
+    const newSrc = conn.actx.createMediaStreamSource(newStream);
+    newSrc.connect(conn.processor);
+    newSrc.connect(conn.an);
+    
+    conn.stream = newStream;
+    conn.srcNode = newSrc;
+    log(`Successfully swapped mic without disconnecting WebSocket.`);
+  } catch(err) {
+    log(`Failed to swap mic: ${err.message}`, 'err');
   }
+}
+
+async function startStream(name, source) {
   if (activeConnections[name]) { log(`"${name}" is already transmitting.`, 'warn'); return; }
   
   setSys('TRANSMITTING', 'live');
   log(`Initializing stream: ${name} [${source}]`);
-  document.getElementById('vizLabel').textContent = `LIVE: ${name}`;
-
-  if (source === 'system') {
-    try {
-      const res = await fetch('/start_system_capture', { method: 'POST' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      
-      activeConnections[name] = { pc: null, stream: null, an: null }; // Mock object
-      updateCount();
-      log(`System capture engaged: ${name}`);
-    } catch (err) {
-      log(`Failed: ${err.message}`, 'err');
-      setSys('ERROR', 'err');
-    }
-    return;
-  }
+  document.getElementById('vizLabel').textContent = `LIVE: ${Object.keys(activeConnections).length + 1} stream(s)`;
 
   let stream;
   try {
-    const getMedia = (constraints) => navigator.mediaDevices.getUserMedia(constraints);
-    const getDisplay = (constraints) => navigator.mediaDevices.getDisplayMedia(constraints);
-
-    if (source === 'browser') {
-      stream = await getMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, video: false });
-    } else {
-      stream = await getDisplay({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, video: true });
+    if (source === 'display') {
+      stream = await navigator.mediaDevices.getDisplayMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 }, video: true });
       stream.getVideoTracks().forEach(t => t.stop());
+    } else if (source.startsWith('mic:')) {
+      const devId = source.split('mic:')[1];
+      const constraints = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 } };
+      if (devId && devId !== 'default') constraints.audio.deviceId = { exact: devId };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
     }
   } catch (err) {
     log(`Hardware capture failed: ${err.message}`, 'err');
@@ -497,6 +672,7 @@ async function startStream(name, source) {
       log(`WebSocket stream connected: ${name}`);
       
       const actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+      if (actx.state === 'suspended') actx.resume();
       const src2 = actx.createMediaStreamSource(stream);
       
       // Use AudioWorklet or ScriptProcessor to get raw PCM
@@ -514,8 +690,8 @@ async function startStream(name, source) {
         // Interleave left and right into a single Float32Array
         const interleaved = new Float32Array(left.length * 2);
         for (let i = 0; i < left.length; i++) {
-          interleaved[i*2] = left[i];
-          interleaved[i*2+1] = right[i];
+          interleaved[i*2] = left[i] * globalVolume;
+          interleaved[i*2+1] = right[i] * globalVolume;
         }
         
         socket.send(interleaved.buffer);
@@ -532,7 +708,8 @@ async function startStream(name, source) {
         stream, 
         an: an2,
         processor,
-        actx
+        actx,
+        srcNode: src2
       };
       updateCount();
       log(`Stream Active: ${name}`);

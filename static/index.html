@@ -322,27 +322,21 @@
           <label>Speaker Name</label>
           <input type="text" id="speakerName" placeholder="e.g. Living Room, Headset" maxlength="40" value="Speaker" />
         </div>
+        <div class="field">
+          <label>Master Volume (Limit)</label>
+          <div style="display:flex; align-items:center; gap: 8px;">
+            <input type="range" id="masterVolume" min="0" max="1" step="0.05" value="1" style="flex:1; accent-color: var(--accent-primary); cursor: pointer;">
+            <span id="masterVolumeDisplay" style="font-family:var(--font-mono); font-size:0.8rem; width:45px;">100%</span>
+            <button id="btnMute" style="padding:4px 8px; font-size:0.75rem; border-radius:4px; border:1px solid var(--border-color); background:transparent; color:var(--text-main); cursor:pointer;">MUTE</button>
+          </div>
+        </div>
         <div class="data-grid" style="margin-bottom:8px;">
           <div><div class="dk">Node ID</div><div class="dv" id="devIdDisplay" style="font-size:0.7rem;">—</div></div>
           <div><div class="dk">Status</div><div class="dv" id="devStatusDisplay">Offline</div></div>
         </div>
       </div>
 
-      <!-- [02] Available Streams -->
-      <div class="panel">
-        <div class="panel-hdr"><span>02 / Available Streams</span><span id="streamCount" style="color:var(--accent-primary);">0</span></div>
-        <div id="streamList" class="stream-list">
-          <div class="empty-hint">Waiting for streams...</div>
-        </div>
-      </div>
 
-      <!-- [03] Assigned by Manager -->
-      <div class="panel">
-        <div class="panel-hdr"><span>03 / Manager Assigned</span></div>
-        <div id="assignedStreams" class="assigned-list">
-          <span style="font-size:0.8rem;color:var(--text-muted);">None</span>
-        </div>
-      </div>
 
       <!-- [04] Connect -->
       <div class="panel">
@@ -355,7 +349,7 @@
         </div>
         <div class="btn-row">
           <button class="primary" id="btnConnect">Connect</button>
-          <button class="danger" id="btnDisconnect" disabled>Disconnect</button>
+          <button class="danger" id="btnDisconnect" style="display:none;">Disconnect</button>
         </div>
         <div class="data-grid">
           <div><div class="dk">Audio Engine</div><div class="dv" id="audioState">—</div></div>
@@ -383,15 +377,15 @@ let knownStreams    = new Set();
 let assignedStreams = [];
 let checkedStreams  = new Set();
 let isConnected    = false;
+let masterGainNode = null;
+let currentVolume  = 1.0;
+let isMuted        = false;
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
 const elName      = () => document.getElementById('speakerName').value.trim() || 'Speaker';
 const elDevReg    = document.getElementById('devRegState');
 const elDevId     = document.getElementById('devIdDisplay');
 const elDevStatus = document.getElementById('devStatusDisplay');
-const elStreamList= document.getElementById('streamList');
-const elAssigned  = document.getElementById('assignedStreams');
-const elStreamCnt = document.getElementById('streamCount');
 const elAudio     = document.getElementById('audioState');
 const elWs        = document.getElementById('wsState');
 const elDownSpeed = document.getElementById('downSpeedDisplay');
@@ -400,6 +394,9 @@ const elSysDot    = document.getElementById('sysDot');
 const elSysText   = document.getElementById('sysText');
 const btnConnect  = document.getElementById('btnConnect');
 const btnDiscon   = document.getElementById('btnDisconnect');
+const mvSlider    = document.getElementById('masterVolume');
+const mvDisp      = document.getElementById('masterVolumeDisplay');
+const btnMute     = document.getElementById('btnMute');
 
 // ── log ───────────────────────────────────────────────────────────────────────
 const logEl = document.getElementById('logBox');
@@ -414,6 +411,34 @@ function setSys(text, level='idle') {
   elSysText.textContent = text;
   elSysDot.className = 'sys-dot ' + (level==='live'?'live':level==='warn'?'warn':level==='err'?'err':'');
 }
+
+function syncMasterVolume(sendUpdate = true) {
+  const v = isMuted ? 0 : currentVolume;
+  mvSlider.value = currentVolume > 1 ? 1 : currentVolume;
+  mvDisp.textContent = (currentVolume * 100).toFixed(0) + '%';
+  btnMute.style.background = isMuted ? 'var(--accent-danger)' : 'transparent';
+  if (masterGainNode) masterGainNode.gain.value = v;
+  
+  if (sendUpdate && deviceId) {
+    fetch('/device/' + deviceId + '/volume', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ volume: v })
+    }).catch(()=>{});
+  }
+}
+
+mvSlider.addEventListener('input', e => {
+  currentVolume = parseFloat(e.target.value);
+  if (currentVolume > 0) isMuted = false;
+  syncMasterVolume();
+});
+
+btnMute.addEventListener('click', () => {
+  isMuted = !isMuted;
+  if (!isMuted && currentVolume === 0) currentVolume = 1.0;
+  syncMasterVolume();
+});
 
 // ── canvas visualizer ─────────────────────────────────────────────────────────
 const canvas = document.getElementById('viz');
@@ -451,49 +476,7 @@ function vizLoop() {
   requestAnimationFrame(vizLoop);
 }
 
-// ── render stream list ────────────────────────────────────────────────────────
-function renderStreamList() {
-  elStreamCnt.textContent = knownStreams.size;
-  if (knownStreams.size === 0) {
-    elStreamList.innerHTML = '<div class="empty-hint">No active streams</div>';
-    return;
-  }
-  elStreamList.innerHTML = '';
-  knownStreams.forEach(name => {
-    const div = document.createElement('div');
-    div.className = 'stream-item';
-    const cbId = 'cb_' + name;
-    div.innerHTML = `
-      <input type="checkbox" id="${cbId}" data-stream="${name}"
-             ${checkedStreams.has(name) || assignedStreams.includes(name) ? 'checked' : ''}>
-      <label for="${cbId}" class="sname">${name}</label>
-      <div class="gain-wrap">
-        <input type="range" min="0" max="2" step="0.05" value="1"
-               data-gain="${name}" title="Gain">
-        <span class="gain-val" id="gv_${name}">1.00x</span>
-      </div>`;
-    elStreamList.appendChild(div);
-    div.querySelector('input[type=checkbox]').addEventListener('change', e => {
-      if (e.target.checked) checkedStreams.add(name);
-      else checkedStreams.delete(name);
-    });
-    div.querySelector('input[type=range]').addEventListener('input', e => {
-      const v = parseFloat(e.target.value);
-      document.getElementById('gv_'+name).textContent = v.toFixed(2)+'x';
-      if (gainNodes[name]) gainNodes[name].gain.value = v;
-    });
-  });
-}
 
-// ── render assigned streams ───────────────────────────────────────────────────
-function renderAssigned() {
-  if (assignedStreams.length === 0) {
-    elAssigned.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted);">None</span>';
-    return;
-  }
-  elAssigned.innerHTML = assignedStreams.map(s =>
-    `<span class="stream-chip">${s}</span>`).join('');
-}
 
 // ── device registration ───────────────────────────────────────────────────────
 async function registerDevice() {
@@ -507,6 +490,10 @@ async function registerDevice() {
   if (!res.ok) throw new Error('Register failed ' + res.status);
   const d = await res.json();
   deviceId = d.id;
+  currentVolume = d.volume !== undefined ? d.volume : 1.0;
+  isMuted = currentVolume === 0;
+  syncMasterVolume(false);
+
   elDevId.textContent     = deviceId.slice(0,14) + '...';
   elDevStatus.textContent = 'Online';
   elDevStatus.style.color = 'var(--accent-success)';
@@ -519,14 +506,17 @@ async function registerDevice() {
 let totalBytesRecv = 0;
 let lastBytesRecv = 0;
 let statTimer = null;
+let isReconnecting = false;
 
 function startHb() {
   stopHb();
-  hbTimer = setInterval(() => {
+  const sendHb = () => {
     if (ws && ws.readyState === WebSocket.OPEN && deviceId) {
       ws.send(JSON.stringify({ type: 'heartbeat', device_id: deviceId }));
     }
-  }, 10_000);
+  };
+  sendHb(); // Send immediately so the backend associates the websocket with this device_id
+  hbTimer = setInterval(sendHb, 3_000);
   
   if (statTimer) clearInterval(statTimer);
   totalBytesRecv = 0;
@@ -555,8 +545,30 @@ function stopHb() {
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen  = () => { elWs.textContent = 'Connected'; elWs.style.color='var(--accent-success)'; log('Server connection established'); if(deviceId) startHb(); };
-  ws.onclose = () => { elWs.textContent = 'Disconnected'; elWs.style.color='var(--text-muted)'; setTimeout(connectWS, 3000); };
+  ws.onopen  = () => { 
+    elWs.textContent = 'Connected'; 
+    elWs.style.color='var(--accent-success)'; 
+    log('Server connection established'); 
+    if (deviceId) {
+      startHb();
+      if (isReconnecting) {
+        log('Auto-reconnecting session...');
+        isReconnecting = false;
+        connect();
+      }
+    }
+  };
+  ws.onclose = () => { 
+    elWs.textContent = 'Disconnected'; 
+    elWs.style.color='var(--text-muted)'; 
+    if (isConnected) {
+      log('Control channel lost. Reconnecting...', 'warn');
+      setSys('RECONNECTING...', 'warn');
+      // Don't kill audio sockets - they are independent WebSocket connections
+      // Just reconnect the control channel
+    }
+    setTimeout(connectWS, 2000); 
+  };
   ws.onerror = () => ws.close();
   ws.onmessage = (e) => {
     let msg; try { msg = JSON.parse(e.data); } catch { return; }
@@ -566,46 +578,58 @@ function connectWS() {
       return;
     }
     if (msg.type === 'snapshot') {
-      knownStreams = new Set(msg.streams || []);
       if (deviceId) {
         const me = (msg.devices || []).find(d => d.id === deviceId);
-        if (me) { assignedStreams = me.assigned_streams || []; renderAssigned(); }
+        if (me) { 
+          const newStreams = me.assigned_streams || [];
+          if (isConnected) {
+            newStreams.forEach(s => { if (!assignedStreams.includes(s)) connectToStream(s); });
+            assignedStreams.forEach(s => { if (!newStreams.includes(s)) disconnectFromStream(s); });
+          }
+          assignedStreams = newStreams;
+        }
       }
-      renderStreamList(); return;
+      return;
     }
-    if (msg.type === 'stream_added')   { knownStreams.add(msg.name);    renderStreamList(); return; }
-    if (msg.type === 'stream_removed') { knownStreams.delete(msg.name); renderStreamList(); return; }
+    if (msg.type === 'stream_added') {
+      if (isConnected && assignedStreams.includes(msg.name)) {
+        connectToStream(msg.name);
+      }
+      return;
+    }
     if (msg.type === 'route_changed' && msg.speaker_id === deviceId) {
-      if (msg.connected)  assignedStreams = [...new Set([...assignedStreams, msg.source])];
-      else                assignedStreams = assignedStreams.filter(s => s !== msg.source);
-      renderAssigned();
+      if (msg.connected) {
+        if (!assignedStreams.includes(msg.source)) {
+          assignedStreams.push(msg.source);
+          if (isConnected) connectToStream(msg.source);
+        }
+      } else {
+        assignedStreams = assignedStreams.filter(s => s !== msg.source);
+        if (isConnected) disconnectFromStream(msg.source);
+      }
       log('Manager ' + (msg.connected?'assigned':'removed') + ': ' + msg.source, 'warn');
     }
     if (msg.type === 'set_volume' && msg.device_id === deviceId) {
       const vol = parseFloat(msg.volume);
-      if (msg.stream) { if (gainNodes[msg.stream]) gainNodes[msg.stream].gain.value = vol; }
-      else { Object.values(gainNodes).forEach(g => g.gain.value = vol); }
+      if (msg.stream) { 
+        if (gainNodes[msg.stream]) gainNodes[msg.stream].gain.value = vol; 
+      } else {
+        currentVolume = vol;
+        isMuted = (vol === 0);
+        syncMasterVolume(false);
+      }
       log('Remote Override: Volume set to ' + Math.round(vol*100) + '%', 'warn');
+    }
+    if (msg.type === 'device_left' && msg.id === deviceId) {
+      log('Device removed by Controller. Disconnecting...', 'err');
+      disconnect();
     }
   };
 }
 
-// ── Audio Streaming via WebSocket ─────────────────────────────────────────────
-function getSelectedStreams() {
-  const result = [];
-  document.querySelectorAll('#streamList input[type=checkbox]:checked').forEach(cb => {
-    result.push(cb.dataset.stream);
-  });
-  return result;
-}
-
-let audioSockets = [];
+let audioSockets = {};
 
 async function connect() {
-  let streams = assignedStreams.length > 0 ? [...assignedStreams] : getSelectedStreams();
-  if (streams.length === 0) streams = getSelectedStreams();
-  if (streams.length === 0) { log('Select or wait for manager to assign streams.', 'warn'); return; }
-
   btnConnect.disabled = true;
   setSys('REGISTERING...', 'warn');
 
@@ -616,94 +640,119 @@ async function connect() {
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   elAudio.textContent = audioCtx.state.toUpperCase();
 
-  // Close old sockets
-  audioSockets.forEach(s => s.close());
-  audioSockets = [];
+  if (!masterGainNode) {
+    masterGainNode = audioCtx.createGain();
+    masterGainNode.connect(audioCtx.destination);
+    masterGainNode.gain.value = isMuted ? 0 : currentVolume;
+  }
+
+  // Close old sockets if reconnecting
+  Object.values(audioSockets).forEach(s => s.close());
+  audioSockets = {};
   gainNodes = {}; analyserNodes = [];
 
-  setSys('CONNECTING...','warn');
-  
-  for (const streamName of streams) {
-    log('Connecting to stream: ' + streamName);
-    
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${proto}://${location.host}/ws/receiver/${encodeURIComponent(streamName)}`);
-    socket.binaryType = 'arraybuffer';
-    
-    const gain = audioCtx.createGain();
-    const an = audioCtx.createAnalyser(); an.fftSize = 256;
-    gain.gain.value = 1.0;
-    gain.connect(an);
-    gain.connect(audioCtx.destination);
-    
-    gainNodes[streamName] = gain;
-    analyserNodes.push(an);
-    
-    let nextPlayTime = 0;
-    
-    socket.onopen = () => {
-      log(`WebSocket audio connected: ${streamName}`);
-      document.getElementById('vizLabel').textContent = 'LIVE: ' + streamName;
-      setSys('PLAYING', 'live');
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      elAudio.textContent = 'RUNNING';
-      
-      const sl = document.querySelector(`[data-gain="${streamName}"]`);
-      if (sl) sl.addEventListener('input', () => { gain.gain.value = parseFloat(sl.value); });
-    };
-    
-    socket.onmessage = (e) => {
-      totalBytesRecv += e.data.byteLength;
-      if (audioCtx.state === 'suspended') return;
-      const f32 = new Float32Array(e.data);
-      const frames = f32.length / 2;
-      const buffer = audioCtx.createBuffer(2, frames, 48000);
-      const left = buffer.getChannelData(0);
-      const right = buffer.getChannelData(1);
-      
-      for (let i = 0; i < frames; i++) {
-        left[i] = f32[i*2];
-        right[i] = f32[i*2+1];
-      }
-      
-      const src = audioCtx.createBufferSource();
-      src.buffer = buffer;
-      src.connect(gain);
-      
-      const currentTime = audioCtx.currentTime;
-      if (nextPlayTime < currentTime) {
-        nextPlayTime = currentTime + 0.05; // 50ms buffer for latency smoothing
-      }
-      src.start(nextPlayTime);
-      nextPlayTime += buffer.duration;
-    };
-    
-    socket.onclose = () => {
-      log(`Stream ${streamName} disconnected.`, 'warn');
-      const idx = analyserNodes.indexOf(an);
-      if (idx > -1) analyserNodes.splice(idx, 1);
-    };
-    
-    socket.onerror = () => {
-      log(`Error on stream ${streamName}.`, 'err');
-    };
-    
-    audioSockets.push(socket);
-  }
+  setSys('CONNECTED', 'live');
+  log('Ready and waiting for controller to assign streams.');
 
   startHb();
   isConnected = true;
-  btnConnect.disabled  = false;
-  btnDiscon.disabled   = false;
-  log('Connected successfully.');
+  btnConnect.style.display = 'none';
+  btnDiscon.style.display  = 'block';
+  btnDiscon.disabled       = false;
+  
+  assignedStreams.forEach(s => connectToStream(s));
+}
+
+function connectToStream(streamName) {
+  if (audioSockets[streamName]) return; // Already connected
+  log('Connecting to assigned stream: ' + streamName);
+  
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const socket = new WebSocket(`${proto}://${location.host}/ws/receiver/${encodeURIComponent(streamName)}`);
+  socket.binaryType = 'arraybuffer';
+  
+  const gain = audioCtx.createGain();
+  const an = audioCtx.createAnalyser(); an.fftSize = 256;
+  gain.gain.value = 1.0;
+  gain.connect(an);
+  gain.connect(masterGainNode);
+  
+  gainNodes[streamName] = gain;
+  analyserNodes.push(an);
+  
+  let nextPlayTime = 0;
+  
+  socket.onopen = () => {
+    log(`WebSocket audio connected: ${streamName}`);
+    document.getElementById('vizLabel').textContent = 'LIVE: ' + streamName;
+    setSys('PLAYING', 'live');
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    elAudio.textContent = 'RUNNING';
+  };
+  
+  socket.onmessage = (e) => {
+    totalBytesRecv += e.data.byteLength;
+    if (audioCtx.state === 'suspended') return;
+    const f32 = new Float32Array(e.data);
+    const frames = f32.length / 2;
+    const buffer = audioCtx.createBuffer(2, frames, 48000);
+    const left = buffer.getChannelData(0);
+    const right = buffer.getChannelData(1);
+    
+    for (let i = 0; i < frames; i++) {
+      left[i] = f32[i*2];
+      right[i] = f32[i*2+1];
+    }
+    
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(gain);
+    
+    const currentTime = audioCtx.currentTime;
+    if (nextPlayTime < currentTime) {
+      nextPlayTime = currentTime + 0.05; // 50ms buffer for latency smoothing
+    }
+    src.start(nextPlayTime);
+    nextPlayTime += buffer.duration;
+  };
+  
+  socket.onclose = () => {
+    log(`Stream ${streamName} disconnected.`, 'warn');
+    const idx = analyserNodes.indexOf(an);
+    if (idx > -1) analyserNodes.splice(idx, 1);
+    delete audioSockets[streamName];
+    delete gainNodes[streamName];
+    
+    if (isConnected && assignedStreams.includes(streamName)) {
+      log(`Auto-reconnecting to stream ${streamName} in 3s...`);
+      setTimeout(() => connectToStream(streamName), 3000);
+    } else if (Object.keys(audioSockets).length === 0 && isConnected) {
+      setSys('CONNECTED', 'live');
+      document.getElementById('vizLabel').textContent = 'STANDBY';
+    }
+  };
+  
+  socket.onerror = () => {
+    log(`Error on stream ${streamName}.`, 'err');
+  };
+  
+  audioSockets[streamName] = socket;
+}
+
+function disconnectFromStream(streamName) {
+  if (audioSockets[streamName]) {
+    audioSockets[streamName].close();
+    delete audioSockets[streamName];
+  }
 }
 
 async function disconnect() {
+  isReconnecting = false;
   stopHb();
   isConnected = false;
   
-  audioSockets.forEach(s => s.close());
-  audioSockets = [];
+  Object.values(audioSockets).forEach(s => s.close());
+  audioSockets = {};
   
   gainNodes = {}; analyserNodes = [];
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
@@ -721,8 +770,9 @@ async function disconnect() {
   elDevStatus.style.color = 'var(--text-main)';
   elDevReg.textContent    = 'Unregistered';
   elDevReg.style.color    = 'var(--text-muted)';
-  btnConnect.disabled  = false;
-  btnDiscon.disabled   = true;
+  btnConnect.style.display = 'block';
+  btnConnect.disabled      = false;
+  btnDiscon.style.display  = 'none';
   log('Disconnected.', 'warn');
 }
 
