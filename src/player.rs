@@ -27,7 +27,13 @@ pub struct PlayerStateData {
     pub current_idx: usize,
     pub playing: bool,
     pub position_sec: f64,
+    #[serde(default = "default_true")]
+    pub loop_queue: bool,
+    #[serde(default)]
+    pub shuffle: bool,
 }
+
+fn default_true() -> bool { true }
 
 pub struct PlayerState {
     pub data: Mutex<PlayerStateData>,
@@ -43,20 +49,52 @@ pub enum PlayerCommand {
     Seek(usize), // Seek track
     SeekTime(f64), // Seek time inside track
     RemoveTrack(usize),
+    MoveTrack(usize, usize),
+    ToggleLoop,
+    ToggleShuffle,
 }
 
 impl PlayerState {
     pub fn new() -> Arc<Self> {
         let (tx, _) = broadcast::channel(10);
-        Arc::new(Self {
-            data: Mutex::new(PlayerStateData {
+        
+        let data = std::fs::read_to_string("player_state.json")
+            .ok()
+            .and_then(|s| serde_json::from_str::<PlayerStateData>(&s).ok())
+            .map(|mut d| {
+                d.playing = false; // Start paused on restart
+                d
+            })
+            .unwrap_or_else(|| PlayerStateData {
                 playlist: vec![],
                 current_idx: 0,
                 playing: false,
                 position_sec: 0.0,
-            }),
+                loop_queue: true,
+                shuffle: false,
+            });
+
+        let state = Arc::new(Self {
+            data: Mutex::new(data),
             command_tx: tx,
-        })
+        });
+        
+        let state_clone = state.clone();
+        tokio::spawn(async move {
+            let mut last_json = String::new();
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                let data = state_clone.data.lock().await.clone();
+                if let Ok(json) = serde_json::to_string(&data) {
+                    if json != last_json {
+                        let _ = std::fs::write("player_state.json", &json);
+                        last_json = json;
+                    }
+                }
+            }
+        });
+
+        state
     }
 }
 
@@ -153,8 +191,14 @@ pub async fn start_player_loop(app_state: Arc<AppState>) {
                                 
                                 let mut processed = buf.clone();
                                 let floats = bytemuck::cast_slice_mut::<u8, f32>(&mut processed);
+                                
+                                let dev_volume = app_state.devices.get("bgm-server-player")
+                                    .map(|d| d.volume)
+                                    .unwrap_or(1.0);
+                                let total_vol = volume * dev_volume;
+                                
                                 for f in floats.iter_mut() {
-                                    *f *= volume;
+                                    *f *= total_vol;
                                 }
                                 let _ = tx.send(Bytes::from(processed));
                                 
@@ -164,7 +208,24 @@ pub async fn start_player_loop(app_state: Arc<AppState>) {
                             Err(_) => {
                                 let mut data = player_state.data.lock().await;
                                 if !data.playlist.is_empty() {
-                                    data.current_idx = (data.current_idx + 1) % data.playlist.len();
+                                    if data.loop_queue {
+                                        let len = data.playlist.len();
+                                        data.current_idx = if data.shuffle && len > 1 {
+                                            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos() as usize;
+                                            let mut n = now % len;
+                                            if n == data.current_idx { n = (n + 1) % len; }
+                                            n
+                                        } else {
+                                            (data.current_idx + 1) % len
+                                        };
+                                    } else {
+                                        if data.current_idx + 1 < data.playlist.len() {
+                                            data.current_idx += 1;
+                                        } else {
+                                            data.playing = false;
+                                            data.position_sec = 0.0;
+                                        }
+                                    }
                                 }
                                 break;
                             }
@@ -181,8 +242,15 @@ pub async fn start_player_loop(app_state: Arc<AppState>) {
                             PlayerCommand::Next => {
                                 let mut data = player_state.data.lock().await;
                                 if !data.playlist.is_empty() {
-                                    data.current_idx = (data.current_idx + 1) % data.playlist.len();
-                                    data.current_idx = (data.current_idx + 1) % data.playlist.len();
+                                    let len = data.playlist.len();
+                                    data.current_idx = if data.shuffle && len > 1 {
+                                        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos() as usize;
+                                        let mut n = now % len;
+                                        if n == data.current_idx { n = (n + 1) % len; }
+                                        n
+                                    } else {
+                                        (data.current_idx + 1) % len
+                                    };
                                     data.position_sec = 0.0;
                                 }
                                 fading_out = true;
@@ -215,7 +283,8 @@ pub async fn start_player_loop(app_state: Arc<AppState>) {
                             PlayerCommand::RemoveTrack(idx) => {
                                 let mut data = player_state.data.lock().await;
                                 if idx < data.playlist.len() {
-                                    data.playlist.remove(idx);
+                                    let removed_track = data.playlist.remove(idx);
+                                    let _ = std::fs::remove_file(&removed_track.path);
                                     if data.current_idx == idx {
                                         if !data.playlist.is_empty() {
                                             data.current_idx = data.current_idx % data.playlist.len();
@@ -225,6 +294,29 @@ pub async fn start_player_loop(app_state: Arc<AppState>) {
                                         fading_out = true;
                                     } else if data.current_idx > idx {
                                         data.current_idx -= 1;
+                                    }
+                                }
+                            }
+                            PlayerCommand::ToggleLoop => {
+                                let mut data = player_state.data.lock().await;
+                                data.loop_queue = !data.loop_queue;
+                            }
+                            PlayerCommand::ToggleShuffle => {
+                                let mut data = player_state.data.lock().await;
+                                data.shuffle = !data.shuffle;
+                            }
+                            PlayerCommand::MoveTrack(from, to) => {
+                                let mut data = player_state.data.lock().await;
+                                if from < data.playlist.len() && to < data.playlist.len() {
+                                    let track = data.playlist.remove(from);
+                                    data.playlist.insert(to, track);
+                                    
+                                    if data.current_idx == from {
+                                        data.current_idx = to;
+                                    } else if from < data.current_idx && to >= data.current_idx {
+                                        data.current_idx -= 1;
+                                    } else if from > data.current_idx && to <= data.current_idx {
+                                        data.current_idx += 1;
                                     }
                                 }
                             }
@@ -242,9 +334,50 @@ pub async fn start_player_loop(app_state: Arc<AppState>) {
                     }
                     PlayerCommand::Seek(idx) => {
                         let mut data = player_state.data.lock().await;
-                        data.current_idx = idx % data.playlist.len();
+                        if !data.playlist.is_empty() {
+                            data.current_idx = idx % data.playlist.len();
+                        } else {
+                            data.current_idx = 0;
+                        }
                         data.position_sec = 0.0;
                         data.playing = true;
+                    }
+                    PlayerCommand::RemoveTrack(idx) => {
+                        let mut data = player_state.data.lock().await;
+                        if idx < data.playlist.len() {
+                            let removed_track = data.playlist.remove(idx);
+                            let _ = std::fs::remove_file(&removed_track.path);
+                            if data.current_idx == idx {
+                                if !data.playlist.is_empty() {
+                                    data.current_idx = data.current_idx % data.playlist.len();
+                                }
+                            } else if data.current_idx > idx {
+                                data.current_idx -= 1;
+                            }
+                        }
+                    }
+                    PlayerCommand::ToggleLoop => {
+                        let mut data = player_state.data.lock().await;
+                        data.loop_queue = !data.loop_queue;
+                    }
+                    PlayerCommand::ToggleShuffle => {
+                        let mut data = player_state.data.lock().await;
+                        data.shuffle = !data.shuffle;
+                    }
+                    PlayerCommand::MoveTrack(from, to) => {
+                        let mut data = player_state.data.lock().await;
+                        if from < data.playlist.len() && to < data.playlist.len() {
+                            let track = data.playlist.remove(from);
+                            data.playlist.insert(to, track);
+                            
+                            if data.current_idx == from {
+                                data.current_idx = to;
+                            } else if from < data.current_idx && to >= data.current_idx {
+                                data.current_idx -= 1;
+                            } else if from > data.current_idx && to <= data.current_idx {
+                                data.current_idx += 1;
+                            }
+                        }
                     }
                     _ => {}
                 }
@@ -300,6 +433,7 @@ async fn get_state(State(state): State<Arc<AppState>>) -> Json<PlayerStateData> 
 pub struct ControlReq {
     pub action: String,
     pub index: Option<usize>,
+    pub to_index: Option<usize>,
     pub time: Option<f64>,
 }
 
@@ -315,6 +449,9 @@ async fn control_player(
         "seek" => if let Some(t) = req.time { PlayerCommand::SeekTime(t) } else { return axum::http::StatusCode::BAD_REQUEST },
         "seek_track" => if let Some(i) = req.index { PlayerCommand::Seek(i) } else { return axum::http::StatusCode::BAD_REQUEST },
         "remove_track" => if let Some(i) = req.index { PlayerCommand::RemoveTrack(i) } else { return axum::http::StatusCode::BAD_REQUEST },
+        "move_track" => if let (Some(from), Some(to)) = (req.index, req.to_index) { PlayerCommand::MoveTrack(from, to) } else { return axum::http::StatusCode::BAD_REQUEST },
+        "toggle_loop" => PlayerCommand::ToggleLoop,
+        "toggle_shuffle" => PlayerCommand::ToggleShuffle,
         _ => return axum::http::StatusCode::BAD_REQUEST,
     };
     

@@ -212,6 +212,7 @@
     .player-btn.play-btn:hover { transform: scale(1.05); background: #f8fafc; }
     .player-btn.power-btn { background: rgba(239, 68, 68, 0.1); color: var(--accent-danger); border: 1px solid rgba(239, 68, 68, 0.2); }
     .player-btn.power-btn.active { background: rgba(16, 185, 129, 0.1); color: var(--accent-success); border: 1px solid rgba(16, 185, 129, 0.2); }
+    .player-btn.active-state { color: var(--accent-primary); }
     
     .timeline-wrap { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 400px; }
     .timeline-time { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); min-width: 40px; text-align: center; }
@@ -308,6 +309,9 @@
   
   <div class="player-center">
     <div class="player-controls">
+      <button class="player-btn" id="btnShuffle" title="Shuffle">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+      </button>
       <button class="player-btn" id="btnPrev" title="Previous">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
       </button>
@@ -316,6 +320,9 @@
       </button>
       <button class="player-btn" id="btnNext" title="Next">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+      </button>
+      <button class="player-btn" id="btnRepeat" title="Repeat Queue">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
       </button>
     </div>
     <div class="timeline-wrap">
@@ -329,6 +336,7 @@
     <div class="player-volume">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
       <input type="range" id="bgmVolume" min="0" max="1" step="0.05" value="1">
+      <span id="bgmVolumePct" style="min-width: 40px; font-size: 0.8rem;">100%</span>
     </div>
     <button class="upload-btn" onclick="toggleQueue()">Queue</button>
     <input type="file" id="bgmInput" multiple accept="audio/*">
@@ -716,8 +724,14 @@ let selectedPopupId = null;
 function selectDevice(id) {
   const isMic = id.startsWith('STR_');
   const dName = isMic ? id.slice(4) : null;
+  let initialVol = 1.0;
+  if (isMic) {
+    if (dName === 'bgm-server-player' && devices[dName]) initialVol = devices[dName].volume;
+    else initialVol = streams[dName]?.volume ?? 1.0;
+  }
+
   const dev = isMic ? { 
-    id, name: dName, role: 'mic', volume: streams[dName]?.volume ?? 1.0, 
+    id, name: dName, role: 'mic', volume: initialVol, 
     status: streams[dName]?.online ? 'online' : 'offline', assigned_streams: [] 
   } : devices[id];
   if (!dev) return;
@@ -769,7 +783,8 @@ function selectDevice(id) {
     vd.textContent = (v*100).toFixed(0)+'%';
     bm.style.background = v===0 ? 'var(--accent-danger)' : 'transparent';
     if (isMic) {
-      streams[dName].volume = v;
+      if (streams[dName]) streams[dName].volume = v;
+      if (dName === 'bgm-server-player' && devices[dName]) devices[dName].volume = v;
       // We send this to backend (although backend handles it loosely, sender will apply it)
       clearTimeout(volT);
       volT = setTimeout(() => {
@@ -884,6 +899,27 @@ function applyEvent(msg) {
     case 'device_updated':
       if (msg.device) {
         if(!devices[msg.device.id]) devices[msg.device.id]=msg.device; else Object.assign(devices[msg.device.id],msg.device);
+        
+        if (msg.device.id === 'bgm-server-player') {
+          const v = document.getElementById('bgmVolume');
+          if (document.activeElement !== v) {
+            v.value = msg.device.volume;
+            document.getElementById('bgmVolumePct').textContent = Math.round(msg.device.volume * 100) + '%';
+          }
+          const powerBtn = document.getElementById('btnPower');
+          if (msg.device.volume === 0) powerBtn.classList.remove('active');
+          else powerBtn.classList.add('active');
+        }
+        
+        if (selectedPopupId === msg.device.id || selectedPopupId === 'STR_' + msg.device.id) {
+          const pVol = document.getElementById('popVol');
+          if (pVol && document.activeElement !== pVol) {
+            pVol.value = msg.device.volume;
+            document.getElementById('popVolVal').textContent = Math.round(msg.device.volume * 100) + '%';
+            const pMute = document.getElementById('popMute');
+            if (pMute) pMute.style.background = msg.device.volume === 0 ? 'var(--accent-danger)' : 'transparent';
+          }
+        }
       }
       break;
     case 'device_left':   
@@ -901,7 +937,31 @@ function applyEvent(msg) {
       if (pendingMic===msg.name) pendingMic=null; 
       break;
     case 'volume_changed': 
-      if(devices[msg.device_id]) devices[msg.device_id].volume=msg.volume; 
+      if(devices[msg.device_id]) {
+        devices[msg.device_id].volume = msg.volume; 
+        
+        if (msg.device_id === 'bgm-server-player') {
+          const v = document.getElementById('bgmVolume');
+          if (document.activeElement !== v) {
+            v.value = msg.volume;
+            document.getElementById('bgmVolumePct').textContent = Math.round(msg.volume * 100) + '%';
+          }
+          const powerBtn = document.getElementById('btnPower');
+          if (msg.volume === 0) powerBtn.classList.remove('active');
+          else powerBtn.classList.add('active');
+        }
+        
+        if (selectedPopupId === msg.device_id || selectedPopupId === 'STR_' + msg.device_id) {
+          const pVol = document.getElementById('popVol');
+          if (pVol && document.activeElement !== pVol) {
+            pVol.value = msg.volume;
+            document.getElementById('popVolVal').textContent = Math.round(msg.volume * 100) + '%';
+            const pMute = document.getElementById('popMute');
+            if (pMute) pMute.style.background = msg.volume === 0 ? 'var(--accent-danger)' : 'transparent';
+          }
+        }
+      }
+      
       if (msg.device_id === myDeviceId && monitorMaster) {
         monitorMaster.gain.value = msg.volume;
       }
@@ -977,12 +1037,33 @@ async function fetchPlayerState() {
     // Status dot indicates connection to server player
     document.getElementById('playerWsDot').style.background = 'var(--accent-success)';
     
+    if (data.loop_queue) {
+       document.getElementById('btnRepeat').classList.add('active-state');
+    } else {
+       document.getElementById('btnRepeat').classList.remove('active-state');
+    }
+    
+    if (data.shuffle) {
+       document.getElementById('btnShuffle').classList.add('active-state');
+    } else {
+       document.getElementById('btnShuffle').classList.remove('active-state');
+    }
+
     const isMuted = devices['bgm-server-player'] && devices['bgm-server-player'].volume === 0;
     const powerBtn = document.getElementById('btnPower');
     if (isMuted) {
       powerBtn.classList.remove('active');
     } else {
       powerBtn.classList.add('active');
+    }
+    
+    if (devices['bgm-server-player']) {
+      const vol = devices['bgm-server-player'].volume;
+      const v = document.getElementById('bgmVolume');
+      if (document.activeElement !== v) {
+        v.value = vol;
+        document.getElementById('bgmVolumePct').textContent = Math.round(vol * 100) + '%';
+      }
     }
   } catch (e) {
     document.getElementById('playerWsDot').style.background = 'var(--text-muted)';
@@ -1025,6 +1106,15 @@ document.getElementById('btnPower').addEventListener('click', () => {
   else sendPlayerCommand('pause');
   
   document.getElementById('bgmVolume').value = vol;
+  document.getElementById('bgmVolumePct').textContent = Math.round(vol * 100) + '%';
+  if (selectedPopupId === 'bgm-server-player' || selectedPopupId === 'STR_bgm-server-player') {
+    const pVol = document.getElementById('popVol');
+    if (pVol) pVol.value = vol;
+    const pVolVal = document.getElementById('popVolVal');
+    if (pVolVal) pVolVal.textContent = Math.round(vol * 100) + '%';
+    const pMute = document.getElementById('popMute');
+    if (pMute) pMute.style.background = vol === 0 ? 'var(--accent-danger)' : 'transparent';
+  }
 });
 
 document.getElementById('bgmTimeline').addEventListener('change', (e) => {
@@ -1055,6 +1145,10 @@ function renderQueue(playlist, currentIdx) {
       <div style="font-size:0.8rem; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer;" onclick="sendPlayerCommand('seek_track', ${idx})">
         ${isPlaying ? '▶ ' : ''}${track.name}
       </div>
+      <div style="display:flex; gap:4px; margin-right: 8px;">
+        ${idx > 0 ? `<button style="background:none; border:none; color:var(--text-main); cursor:pointer; padding:2px;" onclick="sendPlayerCommand('move_up', ${idx})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></button>` : `<div style="width:18px;"></div>`}
+        ${idx < playlist.length - 1 ? `<button style="background:none; border:none; color:var(--text-main); cursor:pointer; padding:2px;" onclick="sendPlayerCommand('move_down', ${idx})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></button>` : `<div style="width:18px;"></div>`}
+      </div>
       <button style="background:none; border:none; color:var(--accent-danger); cursor:pointer; padding:4px;" onclick="sendPlayerCommand('remove_track', ${idx})">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
@@ -1068,6 +1162,8 @@ async function sendPlayerCommand(action, value = null) {
     const body = { action };
     if (action === 'seek') body.time = parseFloat(value);
     if (action === 'seek_track' || action === 'remove_track') body.index = parseInt(value);
+    if (action === 'move_up') { body.action = 'move_track'; body.index = parseInt(value); body.to_index = body.index - 1; }
+    if (action === 'move_down') { body.action = 'move_track'; body.index = parseInt(value); body.to_index = body.index + 1; }
     
     await fetch('/api/player/control', {
       method: 'POST',
@@ -1079,14 +1175,26 @@ async function sendPlayerCommand(action, value = null) {
 }
 
 document.getElementById('bgmVolume').addEventListener('input', (e) => {
+  const vol = parseFloat(e.target.value);
+  document.getElementById('bgmVolumePct').textContent = Math.round(vol * 100) + '%';
+  if (selectedPopupId === 'bgm-server-player' || selectedPopupId === 'STR_bgm-server-player') {
+    const pVol = document.getElementById('popVol');
+    if (pVol) pVol.value = vol;
+    const pVolVal = document.getElementById('popVolVal');
+    if (pVolVal) pVolVal.textContent = Math.round(vol * 100) + '%';
+    const pMute = document.getElementById('popMute');
+    if (pMute) pMute.style.background = vol === 0 ? 'var(--accent-danger)' : 'transparent';
+  }
   fetch('/device/bgm-server-player/volume', {
     method: 'PATCH', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({volume: parseFloat(e.target.value)})
+    body: JSON.stringify({volume: vol})
   });
 });
 
 document.getElementById('btnNext').addEventListener('click', () => sendPlayerCommand('next'));
 document.getElementById('btnPrev').addEventListener('click', () => sendPlayerCommand('prev'));
+document.getElementById('btnRepeat').addEventListener('click', () => sendPlayerCommand('toggle_loop'));
+document.getElementById('btnShuffle').addEventListener('click', () => sendPlayerCommand('toggle_shuffle'));
 
 let myDeviceId = localStorage.getItem('manager_device_id');
 if (!myDeviceId) {
