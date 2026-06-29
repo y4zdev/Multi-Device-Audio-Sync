@@ -686,13 +686,53 @@ function renderDiagram() {
     const p   = customPos[dev.id];
     const off = isOffline(dev);
     const col = off ? 'var(--accent-danger)' : 'var(--accent-primary)';
+    const sqR = NODE_R + 6; // Make square slightly bigger
+    
+    // Check if it's playing sound
+    let isPlaying = false;
+    if (!off && dev.assigned_streams && dev.assigned_streams.length > 0) {
+      isPlaying = dev.assigned_streams.some(s => {
+        if (s === 'System BGM') return window.playerState && window.playerState.playing;
+        return streams[s] && streams[s].online;
+      });
+    }
+    
+    const isMuted = dev.volume === 0;
+    
+    let spectrum = '';
+    if (isPlaying && !isMuted) {
+      // Small spectrum animation below the name
+      spectrum = `
+        <rect x="${p.x - 12}" y="${p.y + 14}" width="4" height="6" fill="${col}"><animate attributeName="height" values="2;6;2" dur="0.6s" repeatCount="indefinite"/><animate attributeName="y" values="${p.y+18};${p.y+14};${p.y+18}" dur="0.6s" repeatCount="indefinite"/></rect>
+        <rect x="${p.x - 4}" y="${p.y + 12}" width="4" height="8" fill="${col}"><animate attributeName="height" values="4;8;4" dur="0.7s" repeatCount="indefinite"/><animate attributeName="y" values="${p.y+16};${p.y+12};${p.y+16}" dur="0.7s" repeatCount="indefinite"/></rect>
+        <rect x="${p.x + 4}" y="${p.y + 16}" width="4" height="4" fill="${col}"><animate attributeName="height" values="2;4;2" dur="0.5s" repeatCount="indefinite"/><animate attributeName="y" values="${p.y+18};${p.y+16};${p.y+18}" dur="0.5s" repeatCount="indefinite"/></rect>
+        <rect x="${p.x + 12}" y="${p.y + 10}" width="4" height="10" fill="${col}"><animate attributeName="height" values="3;10;3" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="${p.y+17};${p.y+10};${p.y+17}" dur="0.8s" repeatCount="indefinite"/></rect>
+      `;
+    } else if (isPlaying && isMuted) {
+      spectrum = `
+        <rect x="${p.x - 12}" y="${p.y + 18}" width="4" height="2" fill="#6b7280" />
+        <rect x="${p.x - 4}" y="${p.y + 18}" width="4" height="2" fill="#6b7280" />
+        <rect x="${p.x + 4}" y="${p.y + 18}" width="4" height="2" fill="#6b7280" />
+        <rect x="${p.x + 12}" y="${p.y + 18}" width="4" height="2" fill="#6b7280" />
+      `;
+    }
+    
+    const muteIcon = `
+      <g transform="translate(${p.x + sqR - 10}, ${p.y - sqR - 6})" onmousedown="window.quickMute(event, '${dev.id}')" cursor="pointer">
+        <circle cx="8" cy="8" r="8" fill="${isMuted ? 'var(--accent-danger)' : 'var(--bg-secondary)'}" stroke="var(--border-color)" stroke-width="1"/>
+        <text x="8" y="11" text-anchor="middle" font-size="8" fill="var(--text-main)" font-family="sans-serif">${isMuted ? '🔇' : '🔊'}</text>
+      </g>
+    `;
+
     const g   = document.createElementNS('http://www.w3.org/2000/svg','g');
     g.style.cursor = currentTool==='select'?'grab':'pointer';
     g.setAttribute('data-node', dev.id);
     g.innerHTML = `
-      <rect x="${p.x-NODE_R}" y="${p.y-NODE_R}" width="${NODE_R*2}" height="${NODE_R*2}" rx="8" fill="rgba(255,255,255,0.02)" stroke="${col}" stroke-width="1.5" />
-      <text x="${p.x}" y="${p.y-4}" text-anchor="middle" font-family="'Inter',sans-serif" font-weight="600" font-size="10" fill="${col}">SPK</text>
-      <text x="${p.x}" y="${p.y+10}" text-anchor="middle" font-family="'Inter',sans-serif" font-weight="500" font-size="10" fill="${off?'#6b7280':'#d1d5db'}">${truncate(dev.name,12)}</text>`;
+      <rect x="${p.x-sqR}" y="${p.y-sqR}" width="${sqR*2}" height="${sqR*2}" rx="8" fill="rgba(255,255,255,0.02)" stroke="${col}" stroke-width="1.5" />
+      <text x="${p.x}" y="${p.y-8}" text-anchor="middle" font-family="'Inter',sans-serif" font-weight="600" font-size="10" fill="${col}">SPK</text>
+      <text x="${p.x}" y="${p.y+4}" text-anchor="middle" font-family="'Inter',sans-serif" font-weight="500" font-size="10" fill="${off?'#6b7280':'#d1d5db'}">${truncate(dev.name,12)}</text>
+      ${spectrum}
+      ${muteIcon}`;
     svg.appendChild(g);
   });
 }
