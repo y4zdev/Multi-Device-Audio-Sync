@@ -521,7 +521,7 @@ function startHb() {
     }
   };
   sendHb(); // Send immediately so the backend associates the websocket with this device_id
-  hbTimer = setInterval(sendHb, 3_000);
+  hbTimer = setInterval(sendHb, 1_000);
   
   if (statTimer) clearInterval(statTimer);
   totalBytesRecv = 0;

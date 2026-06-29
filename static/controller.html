@@ -959,7 +959,7 @@ function connectWS() {
         ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
         if (myDeviceId) ws.send(JSON.stringify({ type: 'heartbeat', device_id: myDeviceId }));
       }
-    }, 2000);
+    }, 1000);
   };
   ws.onclose = () => { 
     setWs('err'); 

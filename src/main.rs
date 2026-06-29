@@ -145,7 +145,7 @@ async fn main() -> Result<()> {
     let state_clone = state.clone();
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -158,7 +158,7 @@ async fn main() -> Result<()> {
                 let diff = now.saturating_sub(entry.last_seen);
                 if diff > 300_000 {
                     to_remove.push(entry.key().clone());
-                } else if diff > 15_000 && matches!(entry.status, DeviceStatus::Online) {
+                } else if diff > 4_000 && matches!(entry.status, DeviceStatus::Online) {
                     entry.value_mut().status = DeviceStatus::Offline;
                     to_offline.push(entry.value().clone());
                 }
@@ -478,7 +478,7 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
     }
 
     let mut current_device_id: Option<String> = None;
-    let mut ping_interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+    let mut ping_interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
     ping_interval.tick().await; // consume the immediate first tick
     let mut pong_deadline: Option<tokio::time::Instant> = None;
 
@@ -502,7 +502,7 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
             _ = ping_interval.tick() => {
                 if let Some(dl) = pong_deadline {
                     if tokio::time::Instant::now() > dl {
-                        // Pong never arrived within 8s - connection is dead
+                        // Pong never arrived within 3s - connection is dead
                         println!("[ws] pong timeout - connection dead");
                         break;
                     }
@@ -510,8 +510,8 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
                 if socket.send(Message::Ping(vec![].into())).await.is_err() {
                     break;
                 }
-                // Set pong deadline 8s from now
-                pong_deadline = Some(tokio::time::Instant::now() + tokio::time::Duration::from_secs(8));
+                // Set pong deadline 3s from now
+                pong_deadline = Some(tokio::time::Instant::now() + tokio::time::Duration::from_secs(3));
             }
             msg = socket.recv() => {
                 match msg {

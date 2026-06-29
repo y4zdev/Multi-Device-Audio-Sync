@@ -565,6 +565,9 @@ let lastBytesSent = 0;
 
 setInterval(() => {
   if (ws && ws.readyState === 1) {
+    if (deviceName) {
+      ws.send(JSON.stringify({ type: 'heartbeat', device_id: deviceName }));
+    }
     ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
   }
 
@@ -577,7 +580,7 @@ setInterval(() => {
   } else {
     document.getElementById('upSpeedDisplay').textContent = '—';
   }
-}, 2000);
+}, 1000);
 
 window.stopStream = function(name) {
   const conn = activeConnections[name];
