@@ -590,16 +590,30 @@ function connectWS() {
         if (me) { 
           const newStreams = me.assigned_streams || [];
           if (isConnected) {
-            newStreams.forEach(s => { if (!assignedStreams.includes(s)) connectToStream(s); });
-            assignedStreams.forEach(s => { if (!newStreams.includes(s)) disconnectFromStream(s); });
+            newStreams.forEach(s => { 
+              if (!audioSockets[s]) connectToStream(s); 
+            });
+            assignedStreams.forEach(s => { 
+              if (!newStreams.includes(s)) disconnectFromStream(s); 
+            });
           }
           assignedStreams = newStreams;
         }
       }
       return;
     }
+    if (msg.type === 'stream_removed') {
+      if (assignedStreams.includes(msg.name)) {
+        log(`Stream ${msg.name} removed from server.`);
+        disconnectFromStream(msg.name);
+      }
+      return;
+    }
     if (msg.type === 'stream_added') {
       if (isConnected && assignedStreams.includes(msg.name)) {
+        console.log(`%c[AUTOMATIC RECONNECT] Stream ${msg.name} reappeared! Forcing immediate socket teardown and reconnect!`, 'color: #ff00ff; font-weight: bold; font-size: 14px;');
+        log(`Stream ${msg.name} reappeared on server. Forcing reconnect...`, 'warn');
+        disconnectFromStream(msg.name);
         connectToStream(msg.name);
       }
       return;
@@ -729,7 +743,10 @@ function connectToStream(streamName) {
     const idx = analyserNodes.indexOf(an);
     if (idx > -1) analyserNodes.splice(idx, 1);
     delete audioSockets[streamName];
-    delete gainNodes[streamName];
+    if (gainNodes[streamName]) {
+      gainNodes[streamName].disconnect();
+      delete gainNodes[streamName];
+    }
     
     if (isConnected && assignedStreams.includes(streamName)) {
       log(`Auto-reconnecting to stream ${streamName} in 3s...`);
@@ -749,8 +766,22 @@ function connectToStream(streamName) {
 
 function disconnectFromStream(streamName) {
   if (audioSockets[streamName]) {
+    audioSockets[streamName].onclose = null; // Prevent timeout triggers
     audioSockets[streamName].close();
     delete audioSockets[streamName];
+  }
+  if (gainNodes[streamName]) {
+    gainNodes[streamName].disconnect();
+    delete gainNodes[streamName];
+  }
+  
+  // Clean up any analyser nodes that don't belong to active sockets
+  // This is a simple cleanup since we don't have a direct map of streamName -> analyserNode
+  if (analyserNodes.length > Object.keys(audioSockets).length) {
+      // Just keep the most recent N nodes where N is the number of active sockets
+      analyserNodes = analyserNodes.slice(-Object.keys(audioSockets).length);
+  } else if (Object.keys(audioSockets).length === 0) {
+      analyserNodes = [];
   }
 }
 
@@ -788,6 +819,26 @@ async function disconnect() {
 
 btnConnect.addEventListener('click', connect);
 btnDiscon.addEventListener ('click', disconnect);
+
+function onWakeGlobal() {
+  if (deviceId && !isConnected) {
+    connectWS();
+  }
+  // Check assigned streams and force reconnect if audio socket is missing or dead
+  if (isConnected) {
+    assignedStreams.forEach(streamName => {
+      const s = audioSockets[streamName];
+      if (!s || s.readyState === WebSocket.CLOSED || s.readyState === WebSocket.CLOSING) {
+        log('Wake detected: Reconnecting audio stream ' + streamName, 'warn');
+        if (s) s.onclose = null; // Prevent duplicate timeout triggers
+        disconnectFromStream(streamName);
+        connectToStream(streamName);
+      }
+    });
+  }
+}
+window.addEventListener('online', onWakeGlobal);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') onWakeGlobal(); });
 
 resizeCanvas();
 requestAnimationFrame(vizLoop);

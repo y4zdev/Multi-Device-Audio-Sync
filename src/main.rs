@@ -610,9 +610,19 @@ async fn handle_ws_sender(mut socket: WebSocket, state: Arc<AppState>, name: Str
         }
     }
 
-    state.streams.remove(&name);
-    let _ = state.event_tx.send(ControlEvent::StreamRemoved { name: name.clone() });
-    println!("[stream] unregistered: {name}");
+    let should_remove = if let Some(current) = state.streams.get(&name) {
+        current.value().same_channel(&tx)
+    } else {
+        false
+    };
+
+    if should_remove {
+        state.streams.remove(&name);
+        let _ = state.event_tx.send(ControlEvent::StreamRemoved { name: name.clone() });
+        println!("[stream] unregistered: {name}");
+    } else {
+        println!("[stream] old connection dropped, but {name} was taken over by a new connection");
+    }
 }
 
 async fn ws_receiver_handler(

@@ -507,6 +507,7 @@ document.getElementById('stopStreamBtn').addEventListener('click', async () => {
 });
 
 // ── Websocket ───────────────────────────────────────────────────────────────
+let isConnected = false;
 function connectWs() {
   if (ws && ws.readyState < 2) return;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -515,12 +516,14 @@ function connectWs() {
   ws.onopen = () => { 
     document.getElementById('wsState').textContent = 'Connected'; 
     document.getElementById('wsState').style.color = 'var(--accent-success)';
+    isConnected = true;
     log('Server connection established.'); 
   };
   
   ws.onclose = () => { 
-    document.getElementById('wsState').textContent = 'Disconnected'; 
-    document.getElementById('wsState').style.color = 'var(--text-muted)';
+    document.getElementById('wsState').textContent = 'Reconnecting...'; 
+    document.getElementById('wsState').style.color = 'var(--accent-warning)';
+    isConnected = false;
     // Don't stop audio streams - they use separate WebSocket connections
     // Just silently reconnect the control channel
     setTimeout(connectWs, 2000); 
@@ -585,9 +588,13 @@ setInterval(() => {
 window.stopStream = function(name) {
   const conn = activeConnections[name];
   if (conn) {
+    conn.stopped = true;
     if (conn.pc) conn.pc.close();
+    if (conn.socket) conn.socket.close();
     if (conn.stream) conn.stream.getTracks().forEach(t => t.stop());
     if (conn.srcNode) conn.srcNode.disconnect();
+    if (conn.processor) conn.processor.disconnect();
+    if (conn.actx && conn.actx.state !== 'closed') conn.actx.close();
     if (conn.an) analyserNodes = analyserNodes.filter(a => a !== conn.an);
     delete activeConnections[name];
   }
@@ -597,6 +604,23 @@ window.stopStream = function(name) {
   log(`Stream terminated: ${name}`, 'warn');
   document.getElementById('vizLabel').textContent = 'STANDBY';
 };
+
+function onWakeGlobal() {
+  if (!isConnected) {
+    connectWs();
+  }
+  Object.values(activeConnections).forEach(conn => {
+    if (!conn.stopped && conn.reconnect) {
+      const s = conn.socket;
+      if (!s || s.readyState === WebSocket.CLOSED || s.readyState === WebSocket.CLOSING) {
+        log('Device woke up, forcing reconnect...', 'warn');
+        conn.reconnect();
+      }
+    }
+  });
+}
+window.addEventListener('online', onWakeGlobal);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') onWakeGlobal(); });
 
 async function sendOffer(endpoint, body) {
   // Not used for WS, but kept for compatibility if needed elsewhere
@@ -663,75 +687,89 @@ async function startStream(name, source) {
   }
 
   try {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${proto}://${location.host}/ws/sender/${encodeURIComponent(name)}`);
+    const actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+    if (actx.state === 'suspended') actx.resume();
+    const src2 = actx.createMediaStreamSource(stream);
     
-    socket.onclose = () => {
-      log(`Connection Lost: ${name}`, 'warn');
-      if (activeConnections[name]) stopStream(name);
+    const processor = actx.createScriptProcessor(4096, 2, 2);
+    src2.connect(processor);
+    processor.connect(actx.destination);
+
+    const an2 = actx.createAnalyser(); 
+    an2.fftSize = 256;
+    src2.connect(an2);
+    analyserNodes.push(an2);
+
+    activeConnections[name] = { 
+      stream, 
+      an: an2,
+      processor,
+      actx,
+      srcNode: src2,
+      stopped: false
     };
 
-    socket.onerror = () => {
-      log(`WebSocket error on stream ${name}`, 'err');
-    };
-
-    socket.onopen = () => {
-      log(`WebSocket stream connected: ${name}`);
+    function connectAudioWS() {
+      if (!activeConnections[name] || activeConnections[name].stopped) return;
       
-      const actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
-      if (actx.state === 'suspended') actx.resume();
-      const src2 = actx.createMediaStreamSource(stream);
-      
-      // Use AudioWorklet or ScriptProcessor to get raw PCM
-      // For broad compatibility, we use ScriptProcessor for now
-      const processor = actx.createScriptProcessor(4096, 2, 2);
-      
-      src2.connect(processor);
-      processor.connect(actx.destination); // Required to make it process
-
-      processor.onaudioprocess = (e) => {
-        if (socket.readyState !== WebSocket.OPEN) return;
-        const left = e.inputBuffer.getChannelData(0);
-        const right = e.inputBuffer.getChannelData(e.inputBuffer.numberOfChannels > 1 ? 1 : 0);
-        
-        // Interleave left and right into a single Float32Array
-        const interleaved = new Float32Array(left.length * 2);
-        for (let i = 0; i < left.length; i++) {
-          interleaved[i*2] = left[i] * globalVolume;
-          interleaved[i*2+1] = right[i] * globalVolume;
-        }
-        
-        socket.send(interleaved.buffer);
-        totalBytesSent += interleaved.byteLength;
-      };
-
-      const an2 = actx.createAnalyser(); 
-      an2.fftSize = 256;
-      src2.connect(an2);
-      analyserNodes.push(an2);
-
-      activeConnections[name] = { 
-        pc: { close: () => socket.close() }, // Mock pc for close()
-        stream, 
-        an: an2,
-        processor,
-        actx,
-        srcNode: src2
-      };
-      updateCount();
-      log(`Stream Active: ${name}`);
-
-      function vuTick() {
-        if (!activeConnections[name]) return;
-        const data = new Uint8Array(an2.frequencyBinCount);
-        an2.getByteFrequencyData(data);
-        const avg = data.reduce((a, b) => a + b, 0) / data.length;
-        const vu = document.getElementById('vu_meter');
-        if (vu) vu.style.width = Math.min(100, (avg / 255) * 100 * 2.5) + '%';
-        requestAnimationFrame(vuTick);
+      if (activeConnections[name].socket) {
+        activeConnections[name].socket.onclose = null;
+        activeConnections[name].socket.close();
       }
-      vuTick();
+      
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const socket = new WebSocket(`${proto}://${location.host}/ws/sender/${encodeURIComponent(name)}`);
+      activeConnections[name].socket = socket;
+      
+      socket.onclose = () => {
+        if (!activeConnections[name] || activeConnections[name].stopped) return;
+        log(`Connection Lost: ${name}. Auto-reconnecting in 2s...`, 'warn');
+        setSys('RECONNECTING...', 'warn');
+        setTimeout(connectAudioWS, 2000);
+      };
+
+      socket.onerror = () => {
+        // let onclose handle reconnect
+      };
+
+      socket.onopen = () => {
+        log(`WebSocket stream connected: ${name}`);
+        setSys('TRANSMITTING', 'live');
+      };
+    }
+    
+    activeConnections[name].reconnect = connectAudioWS;
+    connectAudioWS();
+
+    processor.onaudioprocess = (e) => {
+      const sock = activeConnections[name]?.socket;
+      if (!sock || sock.readyState !== WebSocket.OPEN) return;
+      const left = e.inputBuffer.getChannelData(0);
+      const right = e.inputBuffer.getChannelData(e.inputBuffer.numberOfChannels > 1 ? 1 : 0);
+      
+      const interleaved = new Float32Array(left.length * 2);
+      for (let i = 0; i < left.length; i++) {
+        interleaved[i*2] = left[i] * globalVolume;
+        interleaved[i*2+1] = right[i] * globalVolume;
+      }
+      
+      sock.send(interleaved.buffer);
+      totalBytesSent += interleaved.byteLength;
     };
+
+    updateCount();
+    log(`Stream Active: ${name}`);
+
+    function vuTick() {
+      if (!activeConnections[name]) return;
+      const data = new Uint8Array(an2.frequencyBinCount);
+      an2.getByteFrequencyData(data);
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      const vu = document.getElementById('vu_meter');
+      if (vu) vu.style.width = Math.min(100, (avg / 255) * 100 * 2.5) + '%';
+      requestAnimationFrame(vuTick);
+    }
+    vuTick();
   } catch (err) {
     log(`Initialization failed: ${err.message}`, 'err');
     setSys('ERROR', 'err');
