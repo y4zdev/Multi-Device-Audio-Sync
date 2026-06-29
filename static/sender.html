@@ -353,6 +353,10 @@ async function establishUplink() {
         signal: AbortSignal.timeout(5000),
       });
       
+      if (res.status === 409) {
+        alert('Device name is already online. Please change the name.');
+        throw new Error('Device name conflict');
+      }
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const dev = await res.json();
       

@@ -106,7 +106,7 @@ pub fn player_routes() -> Router<Arc<AppState>> {
 }
 
 pub async fn start_player_loop(app_state: Arc<AppState>) {
-    let name = "BGM Player".to_string();
+    let name = "System BGM".to_string();
     
     // Register device in state
     let device_id = "bgm-server-player".to_string();
@@ -147,7 +147,7 @@ pub async fn start_player_loop(app_state: Arc<AppState>) {
         }
         
         if let Some(path) = track_path {
-            let mut child = Command::new("ffmpeg")
+            let child_res = Command::new("ffmpeg")
                 .args(&[
                     "-ss", &format!("{:.2}", seek_time),
                     "-i", &path, 
@@ -158,8 +158,17 @@ pub async fn start_player_loop(app_state: Arc<AppState>) {
                 ])
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::null())
-                .spawn()
-                .expect("Failed to spawn ffmpeg");
+                .spawn();
+                
+            let mut child = match child_res {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to spawn ffmpeg: {}", e);
+                    let mut data = player_state.data.lock().await;
+                    data.playing = false;
+                    continue;
+                }
+            };
                 
             let mut stdout = child.stdout.take().unwrap();
             let mut buf = vec![0u8; 4096 * 2 * 4]; // 32KB

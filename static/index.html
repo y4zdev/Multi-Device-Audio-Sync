@@ -487,9 +487,14 @@ async function registerDevice() {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ id, name, role: 'speaker' })
   });
+  if (res.status === 409) {
+    alert('Device name is already online. Please change the name.');
+    throw new Error('Device name conflict');
+  }
   if (!res.ok) throw new Error('Register failed ' + res.status);
   const d = await res.json();
   deviceId = d.id;
+  assignedStreams = d.assigned_streams || [];
   currentVolume = d.volume !== undefined ? d.volume : 1.0;
   isMuted = currentVolume === 0;
   syncMasterVolume(false);
@@ -543,12 +548,14 @@ function stopHb() {
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 function connectWS() {
+  if (ws && ws.readyState < 2) return;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.onopen  = () => { 
     elWs.textContent = 'Connected'; 
     elWs.style.color='var(--accent-success)'; 
     log('Server connection established'); 
+    if (isConnected) setSys('CONNECTED', 'live');
     if (deviceId) {
       startHb();
       if (isReconnecting) {
@@ -566,8 +573,8 @@ function connectWS() {
       setSys('RECONNECTING...', 'warn');
       // Don't kill audio sockets - they are independent WebSocket connections
       // Just reconnect the control channel
+      setTimeout(connectWS, 2000); 
     }
-    setTimeout(connectWS, 2000); 
   };
   ws.onerror = () => ws.close();
   ws.onmessage = (e) => {
@@ -661,6 +668,7 @@ async function connect() {
   btnDiscon.disabled       = false;
   
   assignedStreams.forEach(s => connectToStream(s));
+  connectWS();
 }
 
 function connectToStream(streamName) {
@@ -756,15 +764,17 @@ async function disconnect() {
   
   gainNodes = {}; analyserNodes = [];
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  masterGainNode = null;
   elAudio.textContent = '—';
   if (elLatency) elLatency.textContent = '—';
   if (elDownSpeed) elDownSpeed.textContent = '—';
   document.getElementById('vizLabel').textContent = 'STANDBY';
   setSys('IDLE','idle');
-  if (deviceId) {
-    await fetch('/device/'+deviceId, {method:'DELETE'}).catch(()=>{});
-    deviceId = null;
+  if (ws) {
+    ws.close();
+    ws = null;
   }
+  deviceId = null;
   elDevId.textContent     = '—';
   elDevStatus.textContent = 'Offline';
   elDevStatus.style.color = 'var(--text-main)';

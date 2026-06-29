@@ -4,7 +4,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Path, State, DefaultBodyLimit,
     },
-    response::Html,
+    response::{Html, IntoResponse},
     routing::{delete, get, patch, post},
     Json, Router,
 };
@@ -320,38 +320,57 @@ fn now_ms() -> u64 {
 async fn register_device(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RegisterDeviceRequest>,
-) -> (axum::http::StatusCode, Json<DeviceInfo>) {
-    let mut existing = None;
+) -> axum::response::Response {
+    let mut existing_id = None;
+    
+    // First, find if a device with the EXACT same name (case-insensitive) and role exists.
     for entry in state.devices.iter() {
-        if entry.value().name == req.name && entry.value().role == req.role {
-            if matches!(entry.value().status, DeviceStatus::Offline) {
-                existing = Some(entry.value().clone());
-                break;
-            }
+        if entry.value().name.eq_ignore_ascii_case(&req.name) && entry.value().role == req.role {
+            existing_id = Some(entry.value().id.clone());
+            break;
         }
     }
 
-    let device = if let Some(mut dev) = existing {
+    if let Some(id) = existing_id {
+        let is_same_device_id = req.id.is_some() && req.id.as_ref() == Some(&id);
+        let mut dev = state.devices.get(&id).unwrap().clone();
+        
+        if matches!(dev.status, DeviceStatus::Online) && !is_same_device_id {
+            // It's online, and the client didn't provide the matching ID.
+            return (
+                axum::http::StatusCode::CONFLICT,
+                axum::Json(serde_json::json!({ "error": "Device name is already online" }))
+            ).into_response();
+        }
+        
+        // It's either Offline, OR the client provided the matching ID (e.g. reconnecting quickly).
+        // We reuse the existing device!
         dev.status = DeviceStatus::Online;
         dev.last_seen = now_ms();
-        dev
-    } else {
-        let id = req.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        DeviceInfo {
-            id,
-            name:             req.name,
-            role:             req.role,
-            status:           DeviceStatus::Online,
-            assigned_streams: vec![],
-            volume:           1.0,
-            last_seen:        now_ms(),
-        }
+        
+        state.devices.insert(id.clone(), dev.clone());
+        let _ = state.event_tx.send(ControlEvent::DeviceJoined { device: dev.clone() });
+        println!("[device] reused/re-registered: {} ({})", dev.name, dev.id);
+        
+        return (axum::http::StatusCode::CREATED, Json(dev)).into_response();
+    }
+
+    // If we get here, no device with this name exists. Create a new one.
+    let id = req.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let device = DeviceInfo {
+        id,
+        name:             req.name,
+        role:             req.role,
+        status:           DeviceStatus::Online,
+        assigned_streams: vec![],
+        volume:           1.0,
+        last_seen:        now_ms(),
     };
 
     state.devices.insert(device.id.clone(), device.clone());
     let _ = state.event_tx.send(ControlEvent::DeviceJoined { device: device.clone() });
     println!("[device] registered: {} ({})", device.name, device.id);
-    (axum::http::StatusCode::CREATED, Json(device))
+    (axum::http::StatusCode::CREATED, Json(device)).into_response()
 }
 
 async fn list_devices(
